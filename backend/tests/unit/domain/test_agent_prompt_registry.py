@@ -7,6 +7,7 @@ from app.domain.services.agent_prompt_registry import (
     PromptAssemblyInput,
     PromptFallbackMode,
 )
+from app.domain.services.agent_tool_registry import build_default_agent_tool_registry
 from app.providers.llm.types import LLMCapabilities
 
 
@@ -95,6 +96,55 @@ def test_prompt_registry_downgrades_assembly_mode_for_weak_provider() -> None:
     )
 
     assert assembly.fallback_mode == PromptFallbackMode.STRUCTURED_JSON_PROPOSALS
+
+
+def test_prompt_registry_builds_llm_request_with_read_only_tools(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("CONTENT_FACTORY_ARTIFACT_ROOT", str(tmp_path))
+    tool_registry = build_default_agent_tool_registry()
+    registry = AgentPromptRegistry()
+
+    request = registry.build_llm_request(
+        PromptAssemblyInput(
+            profile_key="operator",
+            capabilities=LLMCapabilities(
+                supports_tools=True,
+                supports_vision=False,
+                supports_structured_output=True,
+            ),
+            user_message="Inspect available artifacts.",
+        ),
+        tools=tool_registry.llm_tool_specs(),
+    )
+
+    assert [message.role for message in request.messages][-1] == "user"
+    assert {tool.name for tool in request.tools} == {
+        "list_artifacts",
+        "inspect_video",
+        "extract_keyframes",
+        "analyze_tiktok_stats",
+        "compare_variants",
+    }
+
+
+def test_prompt_registry_omits_tools_when_provider_lacks_native_tool_calling() -> None:
+    registry = AgentPromptRegistry()
+
+    request = registry.build_llm_request(
+        PromptAssemblyInput(
+            profile_key="operator",
+            capabilities=LLMCapabilities(
+                supports_tools=False,
+                supports_vision=False,
+                supports_structured_output=True,
+            ),
+        ),
+        tools=build_default_agent_tool_registry().llm_tool_specs(),
+    )
+
+    assert request.tools == ()
 
 
 @pytest.mark.parametrize(

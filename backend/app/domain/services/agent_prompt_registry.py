@@ -4,7 +4,13 @@ from dataclasses import dataclass
 from enum import StrEnum
 import hashlib
 
-from app.providers.llm.types import LLMCapabilities, LLMMessage, LLMResponseMode
+from app.providers.llm.types import (
+    LLMCapabilities,
+    LLMMessage,
+    LLMRequest,
+    LLMResponseMode,
+    LLMToolSpec,
+)
 
 
 class PromptFallbackMode(StrEnum):
@@ -111,6 +117,29 @@ class AgentPromptRegistry:
             },
             fallback_mode=fallback_mode,
             deterministic_fingerprint=deterministic_fingerprint,
+        )
+
+    def build_llm_request(
+        self,
+        item: PromptAssemblyInput,
+        *,
+        tools: tuple[LLMToolSpec, ...] = (),
+        model: str | None = None,
+        max_tokens: int | None = None,
+        temperature: float = 0.2,
+    ) -> LLMRequest:
+        assembly = self.assemble(item)
+        enabled_tools = (
+            tools
+            if assembly.fallback_mode == PromptFallbackMode.NATIVE_TOOL_CALLING
+            else ()
+        )
+        return LLMRequest(
+            messages=assembly.messages,
+            model=model,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            tools=enabled_tools,
         )
 
     @staticmethod
