@@ -33,9 +33,15 @@ class InMemoryRenderQueue:
         self._queue: deque[str] = deque()
         self._jobs: dict[str, QueuedRenderJob] = {}
 
-    def enqueue(self, episode_id: str, steps: tuple[RenderStepKind, ...] = DEFAULT_RENDER_STEPS) -> RenderJob:
+    def enqueue(
+        self,
+        episode_id: str,
+        steps: tuple[RenderStepKind, ...] = DEFAULT_RENDER_STEPS,
+        *,
+        job_id: str | None = None,
+    ) -> RenderJob:
         job = RenderJob(
-            id=str(uuid4()),
+            id=job_id or str(uuid4()),
             episode_id=episode_id,
             status=RenderJobStatus.QUEUED,
             steps=[RenderStep(kind=step) for step in steps],

@@ -1,6 +1,8 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import { ApprovalCard } from "./approval-card";
+import { useApprovalCards } from "./use-approval-cards";
 
 type CopilotMessage = {
   id: string;
@@ -14,7 +16,7 @@ const initialMessages: CopilotMessage[] = [
     id: "msg-1",
     role: "assistant",
     time: "14:02",
-    text: "Queue drift detected on P1 jobs. I can reprioritize two renders after policy checks clear.",
+    text: "Queue drift detected on P1 jobs. I can reprioritize two renders after approval.",
   },
   {
     id: "msg-2",
@@ -54,6 +56,7 @@ const eventCards = [
 export function CopilotPanel() {
   const [messages, setMessages] = useState<CopilotMessage[]>(initialMessages);
   const [draft, setDraft] = useState("");
+  const { approvalCards } = useApprovalCards();
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -117,6 +120,14 @@ export function CopilotPanel() {
           </article>
         ))}
       </div>
+
+      {approvalCards.length > 0 ? (
+        <div className="copilot-cards" aria-label="Approval cards">
+          {approvalCards.map((card) => (
+            <ApprovalCard card={card} key={card.id} />
+          ))}
+        </div>
+      ) : null}
 
       <form className="copilot-input" onSubmit={handleSubmit}>
         <label htmlFor="copilot-prompt">Command</label>
