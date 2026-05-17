@@ -53,6 +53,33 @@ const eventCards = [
   },
 ];
 
+const assistantCards = [
+  {
+    id: "caption-pack",
+    eyebrow: "Caption pack",
+    title: "Archive Door Reveal",
+    meta: "TikTok / linked artifact",
+    body: "Caption, hashtags, first comment, and strategy note are ready for operator review.",
+    items: ["Caption: The opening beat is the test", "Tags: #neon #relic #tiktok"],
+  },
+  {
+    id: "recommendation",
+    eyebrow: "Recommendation",
+    title: "Strengthen first two seconds",
+    meta: "Evidence: retention + text beats",
+    body: "Opening retention is below target and the first text beat starts after policy timing.",
+    items: ["Reason: 41% first-two-second signal", "Next: cut a clearer first-frame hook"],
+  },
+  {
+    id: "proposed-edit",
+    eyebrow: "Proposed edit",
+    title: "Move hook text earlier",
+    meta: "Needs approval",
+    body: "Add a short burned-in hook text beat at 0.00-0.30s before the next preview render.",
+    items: ["Action: update text-beat timing", "Memory: save as variant history candidate"],
+  },
+];
+
 export function CopilotPanel() {
   const [messages, setMessages] = useState<CopilotMessage[]>(initialMessages);
   const [draft, setDraft] = useState("");
@@ -109,6 +136,24 @@ export function CopilotPanel() {
             <p>{message.text}</p>
           </article>
         ))}
+
+        <div className="assistant-card-stack" aria-label="Production assistant suggestions">
+          {assistantCards.map((card) => (
+            <article className="assistant-card" key={card.id}>
+              <div className="assistant-card-head">
+                <span>{card.eyebrow}</span>
+                <small>{card.meta}</small>
+              </div>
+              <strong>{card.title}</strong>
+              <p>{card.body}</p>
+              <ul>
+                {card.items.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+            </article>
+          ))}
+        </div>
       </div>
 
       <div className="copilot-cards" aria-label="Event and tool cards">

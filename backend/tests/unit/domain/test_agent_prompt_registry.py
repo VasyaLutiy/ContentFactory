@@ -126,6 +126,8 @@ def test_prompt_registry_builds_llm_request_with_read_only_tools(
         "extract_keyframes",
         "analyze_tiktok_stats",
         "compare_variants",
+        "prepare_caption_pack",
+        "recommend_next_edit",
     }
 
 
