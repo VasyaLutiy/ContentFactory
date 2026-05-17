@@ -16,6 +16,7 @@ import json
 import os
 from pathlib import Path
 from urllib.error import HTTPError
+from urllib.parse import quote
 from urllib.request import Request, urlopen
 
 
@@ -53,7 +54,7 @@ def upsert_label(repo: str, token: str, label: dict, dry_run: bool) -> None:
             raise
         request(
             "PATCH",
-            f"/repos/{repo}/labels/{label['name'].replace(' ', '%20')}",
+            f"/repos/{repo}/labels/{quote(label['name'], safe='')}",
             token,
             {"color": label["color"], "description": label["description"]},
         )
@@ -75,8 +76,19 @@ def create_missing_milestones(repo: str, token: str, milestones: list[dict], dry
     return existing
 
 
+def get_issues(repo: str, token: str) -> dict[str, dict]:
+    data = request("GET", f"/repos/{repo}/issues?state=all&per_page=100", token)
+    return {item["title"]: item for item in data if "pull_request" not in item}
+
+
 def create_issues(repo: str, token: str, issues: list[dict], milestone_numbers: dict[str, int], dry_run: bool) -> None:
+    existing = {} if dry_run else get_issues(repo, token)
     for issue in issues:
+        existing_issue = existing.get(issue["title"])
+        if existing_issue:
+            print(f"issue: {issue['title']} -> existing #{existing_issue['number']}")
+            continue
+
         print(f"issue: {issue['title']}")
         if dry_run:
             continue
@@ -86,7 +98,8 @@ def create_issues(repo: str, token: str, issues: list[dict], milestone_numbers: 
             "labels": issue["labels"],
             "milestone": milestone_numbers.get(issue["milestone"]),
         }
-        request("POST", f"/repos/{repo}/issues", token, payload)
+        created = request("POST", f"/repos/{repo}/issues", token, payload)
+        print(f"created: #{created['number']} {created['html_url']}")
 
 
 def main() -> None:
