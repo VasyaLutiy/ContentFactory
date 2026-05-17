@@ -14,6 +14,7 @@
     {"name": "priority:p2", "color": "fbca04", "description": "Useful but not immediate"},
     {"name": "status:needs-review", "color": "ededed", "description": "Waiting for owner review"},
     {"name": "status:approved", "color": "0e8a16", "description": "Approved for implementation"},
+    {"name": "status:done", "color": "5319e7", "description": "Closed by merged implementation"},
     {"name": "blocked", "color": "000000", "description": "Blocked by dependency or credentials"}
   ],
   "milestones": [
