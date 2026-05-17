@@ -6,6 +6,8 @@ import sys
 import pytest
 
 from app.artifacts.storage import ArtifactStorage
+from app.db.repos.asset import AssetRepository
+from app.db.session import get_session_maker
 from app.core.config import get_settings
 from app.integrations.scripts.execution import ExpectedArtifact, run_legacy_command
 from app.integrations.scripts.expand_ltx_adapter import (
@@ -236,6 +238,20 @@ def test_run_make_short_validates_namespace_before_mkdir(tmp_path, monkeypatch) 
     assert not out.parent.exists()
 
 
+def test_run_make_short_rejects_unsafe_namespace_before_command(tmp_path, monkeypatch) -> None:
+    legacy_root = _legacy_root(tmp_path, monkeypatch)
+    (legacy_root / "make_short.py").write_text("raise SystemExit('should not run')\n")
+
+    with pytest.raises(ValueError, match="single safe path segment"):
+        run_make_short(
+            MakeShortRequest(prompt="x"),
+            storage=ArtifactStorage(tmp_path / "artifacts"),
+            namespace="../../escape",
+        )
+
+    assert not (tmp_path / "escape").exists()
+
+
 def test_run_f5_voice_validates_namespace_before_mkdir(tmp_path, monkeypatch) -> None:
     legacy_root = _legacy_root(tmp_path, monkeypatch)
     (legacy_root / "add_voice.py").write_text("raise SystemExit('should not run')\n")
@@ -340,6 +356,103 @@ def test_run_legacy_command_registers_expected_outputs(tmp_path) -> None:
     assert len(result.artifacts) == 1
     assert result.artifacts[0].path == tmp_path / "artifacts" / "job-14" / "video" / "output.mp4"
     assert result.artifacts[0].path.read_text() == "video"
+
+
+def test_run_legacy_command_records_asset_metadata_when_repository_provided(tmp_path) -> None:
+    output = tmp_path / "output.mp4"
+    storage = ArtifactStorage(tmp_path / "artifacts")
+    command = [
+        sys.executable,
+        "-c",
+        "from pathlib import Path; Path(r'" + str(output) + "').write_text('video')",
+    ]
+
+    session_maker = get_session_maker()
+    with session_maker() as db:
+        repo = AssetRepository(db)
+        result = run_legacy_command(
+            command,
+            expected_artifacts=(ExpectedArtifact(output, AssetKind.VIDEO),),
+            storage=storage,
+            namespace="job-15",
+            asset_repository=repo,
+            metadata={"adapter": "test"},
+            render_job_id="render-15",
+            render_step_kind="video",
+        )
+
+        assert len(result.asset_ids) == 1
+        asset = repo.get(result.asset_ids[0])
+        assert asset is not None
+        assert asset.namespace == "job-15"
+        assert asset.relative_path == "job-15/video/output.mp4"
+        assert asset.metadata_json == {"adapter": "test"}
+        assert asset.render_job_id == "render-15"
+
+
+def test_run_legacy_command_removes_copied_artifact_when_db_registration_fails(tmp_path) -> None:
+    output = tmp_path / "output.mp4"
+    storage = ArtifactStorage(tmp_path / "artifacts")
+    command = [
+        sys.executable,
+        "-c",
+        "from pathlib import Path; Path(r'" + str(output) + "').write_text('video')",
+    ]
+
+    session_maker = get_session_maker()
+    with session_maker() as db:
+        repo = AssetRepository(db)
+        missing_parent_id = 999999
+
+        with pytest.raises(Exception):
+            run_legacy_command(
+                command,
+                expected_artifacts=(ExpectedArtifact(output, AssetKind.VIDEO),),
+                storage=storage,
+                namespace="job-fail",
+                asset_repository=repo,
+                parent_asset_ids=(missing_parent_id,),
+            )
+
+        assert not (tmp_path / "artifacts" / "job-fail" / "video" / "output.mp4").exists()
+
+
+def test_run_make_short_threads_asset_repository_to_legacy_execution(tmp_path, monkeypatch) -> None:
+    legacy_root = _legacy_root(tmp_path, monkeypatch)
+    (legacy_root / "make_short.py").write_text(
+        "import argparse\n"
+        "from pathlib import Path\n"
+        "parser = argparse.ArgumentParser()\n"
+        "parser.add_argument('prompt')\n"
+        "parser.add_argument('--duration')\n"
+        "parser.add_argument('--fps')\n"
+        "parser.add_argument('--out')\n"
+        "args = parser.parse_args()\n"
+        "Path(args.out).parent.mkdir(parents=True, exist_ok=True)\n"
+        "Path(args.out).write_text('video')\n"
+    )
+    out = tmp_path / "short.mp4"
+    storage = ArtifactStorage(tmp_path / "artifacts")
+
+    session_maker = get_session_maker()
+    with session_maker() as db:
+        repo = AssetRepository(db)
+        result = run_make_short(
+            MakeShortRequest(prompt="x", out=str(out)),
+            storage=storage,
+            namespace="job-real",
+            asset_repository=repo,
+            metadata={"entrypoint": "make_short"},
+            render_job_id="render-real",
+            render_step_kind="video",
+        )
+
+        assert len(result.asset_ids) == 1
+        asset = repo.get(result.asset_ids[0])
+        assert asset is not None
+        assert asset.namespace == "job-real"
+        assert asset.relative_path == "job-real/video/short.mp4"
+        assert asset.metadata_json == {"entrypoint": "make_short"}
 
 
 def test_ffmpeg_mux_audio_command_can_keep_or_replace_original_audio(tmp_path) -> None:

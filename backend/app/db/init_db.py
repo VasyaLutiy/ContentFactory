@@ -5,6 +5,8 @@ from app.db.models import (  # noqa: F401
     agent_message,
     agent_session,
     agent_tool_call,
+    asset,
+    asset_lineage,
     campaign,
     character,
     episode,

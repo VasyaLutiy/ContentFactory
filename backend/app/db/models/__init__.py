@@ -3,6 +3,8 @@ from app.db.models.agent_event import AgentEventModel
 from app.db.models.agent_message import AgentMessageModel
 from app.db.models.agent_session import AgentSessionModel
 from app.db.models.agent_tool_call import AgentToolCallModel
+from app.db.models.asset import AssetModel
+from app.db.models.asset_lineage import AssetLineageModel
 from app.db.models.campaign import CampaignModel
 from app.db.models.character import CharacterModel
 from app.db.models.episode import EpisodeModel
@@ -16,6 +18,8 @@ __all__ = [
     "AgentEventModel",
     "AgentApprovalModel",
     "AgentToolCallModel",
+    "AssetModel",
+    "AssetLineageModel",
     "CampaignModel",
     "CharacterModel",
     "EpisodeModel",
