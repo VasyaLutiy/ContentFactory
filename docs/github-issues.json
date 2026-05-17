@@ -23,7 +23,8 @@
     {"title": "M2: Render Pipeline Integration", "description": "Controlled adapters around current scripts and ComfyUI render flow."},
     {"title": "M3: Factory UI Vertical Slice", "description": "Episode editor, text beats, validation, and render queue."},
     {"title": "M4: Analytics And Recommendation Loop", "description": "TikTok snapshots, KPI comparisons, and recommendations."},
-    {"title": "M5: Production Hardening", "description": "Observability, deployment, backups, and integration test hardening."}
+    {"title": "M5: Production Hardening", "description": "Observability, deployment, backups, and integration test hardening."},
+    {"title": "M6: Factory Agent Orchestrator", "description": "In-product LLM production assistant, backend tool registry, approvals, context, and Copilot UI."}
   ],
   "issues": [
     {
@@ -67,6 +68,12 @@
       "milestone": "M1: Foundation And Control Plane",
       "labels": ["type:epic", "area:tests", "area:ops", "priority:p0", "status:needs-review"],
       "body": "## Goal\nKeep the project reviewable and safe through tests, CI, and disciplined git workflow.\n\n## Scope\npytest harness, fixtures, unit tests, GitHub issue/PR conventions, CI skeleton, optional nightly integration tests.\n\n## Acceptance Criteria\n- Unit tests run without GPU/TikTok.\n- CI runs lint/tests for backend and frontend skeleton.\n- Issues and PRs map to approved batches."
+    },
+    {
+      "title": "Epic: Factory Agent Orchestrator",
+      "milestone": "M6: Factory Agent Orchestrator",
+      "labels": ["type:epic", "area:backend", "area:frontend", "area:ops", "priority:p0", "status:needs-review"],
+      "body": "## Goal\nBuild an in-product Factory Agent that operates the ContentFactory through controlled backend tools, not direct frontend shell access.\n\n## Scope\nAgent sessions, message persistence, SSE events, provider-agnostic LLM adapter, typed tool registry, context builder, prompt/profile registry, approvals, audit logs, Copilot UI, read-only production tools, caption pack generation, and controlled render job launch.\n\n## Non-Goals\nNo autonomous TikTok posting, destructive file operations, unapproved paid API calls, unrestricted shell execution, realtime voice agent, or multi-agent autopilot in this epic.\n\n## Acceptance Criteria\n- Operator can chat with the Factory Agent inside the product UI.\n- Agent answers with grounded artifact, timestamp, metric, and tool-result references.\n- Read-only tools can inspect artifacts/stats without approval.\n- Expensive or external-cost actions require explicit approval.\n- Approved render jobs are created through backend APIs and remain auditable.\n- Provider credentials never leave the backend.\n- Prompt/profile/context decisions are versioned and testable."
     },
     {
       "title": "Batch: Repository Workflow And Issue Backlog",
@@ -145,6 +152,42 @@
       "milestone": "M5: Production Hardening",
       "labels": ["type:batch", "area:ops", "area:tests", "priority:p2", "status:needs-review"],
       "body": "## Goal\nMake the single-workstation deployment repeatable and recoverable.\n\n## Tasks\n- Docker Compose for API, worker, Redis, Postgres, frontend.\n- Structured logs.\n- Provider timeout/backoff policy.\n- Backup/export runbook.\n- Nightly integration test plan.\n\n## Acceptance Criteria\n- Local stack can be started and stopped from docs.\n- Worker restart preserves job/artifact state.\n\n## Test Plan\n- Compose smoke test.\n- Recovery runbook dry run."
+    },
+    {
+      "title": "Batch: Agent Chat Shell And Session API",
+      "milestone": "M6: Factory Agent Orchestrator",
+      "labels": ["type:batch", "area:backend", "area:frontend", "priority:p0", "status:needs-review"],
+      "body": "## Goal\nCreate the first reviewable Factory Agent vertical slice: persistent sessions, messages, streaming events, and a Copilot panel shell.\n\n## Tasks\n- Add agent session/message schemas, models, repositories, and API endpoints.\n- Add POST /api/v1/agent/sessions and POST /api/v1/agent/sessions/{id}/messages.\n- Add GET /api/v1/agent/sessions/{id}/events using SSE for MVP streaming.\n- Add a persistent right-side Copilot panel to the workspace UI.\n- Add a basic context builder that includes selected campaign/episode/job/artifact references.\n\n## Acceptance Criteria\n- A user can create or resume an agent session.\n- Assistant text responses stream to the UI.\n- Message and event history survives API object recreation in tests.\n- No tool execution or provider secret is exposed to the frontend.\n\n## Test Plan\n- API tests for create session, post message, stream event, and resume session.\n- Frontend typecheck/build for the Copilot shell."
+    },
+    {
+      "title": "Batch: LLM Provider And Prompt Contracts",
+      "milestone": "M6: Factory Agent Orchestrator",
+      "labels": ["type:batch", "area:backend", "area:ops", "area:tests", "priority:p0", "status:needs-review"],
+      "body": "## Goal\nIntroduce provider-agnostic LLM and prompt/profile contracts before wiring production tools.\n\n## Tasks\n- Add internal LLMProvider interface with createResponse, streamResponse, and capability flags.\n- Add settings for LLM_PROVIDER, LLM_BASE_URL, LLM_API_KEY, LLM_MODEL, LLM_REASONING_MODEL, LLM_VISION_MODEL, timeout, token budget, tool support, vision support, and structured-output support.\n- Add OpenAI-compatible adapter scaffolding for openai, azure_openai, gemini_compat, and custom_openai_compat modes.\n- Add prompt registry contract with versioned system prompts and agent profiles.\n- Implement fallback modes: native tool calling, structured JSON proposals, and advisor-only.\n\n## Acceptance Criteria\n- Provider selection is configurable without frontend secrets.\n- Runtime can report provider capabilities.\n- Weak tool-support providers downgrade safely to structured proposals or advisor mode.\n- Prompt assembly order is deterministic and covered by tests.\n\n## Test Plan\n- Unit tests for settings parsing, capability fallback, prompt assembly, and provider timeout/error normalization."
+    },
+    {
+      "title": "Batch: Typed Agent Tool Registry And Read-Only Tools",
+      "milestone": "M6: Factory Agent Orchestrator",
+      "labels": ["type:batch", "area:backend", "area:analytics", "area:providers", "area:tests", "priority:p0", "status:needs-review"],
+      "body": "## Goal\nExpose safe, typed backend tools so the agent can inspect factory state without shell access.\n\n## Tasks\n- Add a deny-by-default tool registry with typed input/output schemas, safety class, timeout, cost hint, and audit metadata.\n- Implement MVP read-only tools: list_artifacts, inspect_video, extract_keyframes, analyze_tiktok_stats, and compare_variants.\n- Normalize tool results into artifact refs, timestamps, metrics, warnings, and structured errors.\n- Persist tool calls, tool results, and context snapshots for replay.\n\n## Acceptance Criteria\n- Unknown tools are rejected before execution.\n- Invalid tool inputs return schema errors.\n- Read-only tools run without approval and cannot mutate core factory state.\n- Agent responses can reference concrete artifact IDs, paths, timestamps, and metrics from tool results.\n\n## Test Plan\n- Unit tests for registry allowlist, schema validation, structured errors, and each read-only tool with fixtures."
+    },
+    {
+      "title": "Batch: Approval Gates And Controlled Job Launch",
+      "milestone": "M6: Factory Agent Orchestrator",
+      "labels": ["type:batch", "area:backend", "area:frontend", "area:ops", "priority:p0", "status:needs-review"],
+      "body": "## Goal\nLet the Factory Agent propose expensive or external-cost actions while keeping execution under explicit user approval.\n\n## Tasks\n- Add safety classes read_only, cheap_write, expensive_job, external_api_cost, and destructive.\n- Add agent_approvals persistence and approve/reject endpoints.\n- Add approval cards in the Copilot UI with tool name, estimated cost, duration, input spec, and output location.\n- Wire create_render_job to the existing render queue only after approval.\n- Emit SSE events for approval.required, approval.resolved, tool.started, tool.result, error, and done.\n\n## Acceptance Criteria\n- Expensive job tools cannot execute without an approved approval_id.\n- Rejected approvals leave an audit trail and do not enqueue work.\n- Approved render jobs appear in the existing job monitor.\n- Destructive tools are unavailable in MVP.\n\n## Test Plan\n- API tests for pending, approved, rejected, expired, and duplicate approval decisions.\n- UI build/typecheck for approval card states.\n- Queue integration test for approved create_render_job."
+    },
+    {
+      "title": "Batch: Caption Pack And Production Recommendations",
+      "milestone": "M6: Factory Agent Orchestrator",
+      "labels": ["type:batch", "area:backend", "area:frontend", "area:analytics", "priority:p1", "status:needs-review"],
+      "body": "## Goal\nGive the Factory Agent a shippable production-assistant workflow for captions, hashtags, first comments, and next-edit recommendations.\n\n## Tasks\n- Implement prepare_caption_pack with caption, hashtags, first comment, strategy note, and artifact refs.\n- Add recommendation cards grounded in artifacts, TikTok metrics, first-2-second retention heuristics, and text-beat policy.\n- Store variant history and experiment notes as agent memory candidates.\n- Add Copilot UI cards for caption pack, recommendation, and proposed edit actions.\n\n## Acceptance Criteria\n- Agent can produce a posting pack for a selected artifact without exposing secrets or private paths.\n- Recommendations include reason, evidence, and one concrete next action.\n- Memory writes are curated and auditable, not raw chat dumps.\n- Output is linked to artifact/variant context.\n\n## Test Plan\n- Deterministic tests for caption pack schema and recommendation fixtures.\n- UI build/typecheck for recommendation and caption cards."
+    },
+    {
+      "title": "Batch: Agent Contract Evals And Hardening",
+      "milestone": "M6: Factory Agent Orchestrator",
+      "labels": ["type:batch", "area:backend", "area:ops", "area:tests", "priority:p1", "status:needs-review"],
+      "body": "## Goal\nMake the Factory Agent reviewable and safe through replayable contracts, eval fixtures, and operational guardrails.\n\n## Tasks\n- Add saved conversation and artifact fixtures for retention diagnosis, variant comparison, caption pack, and approval-required render requests.\n- Add regression tests for no ungrounded file/render/stat claims.\n- Add structured logging with session_id, message_id, provider, model, tool name, latency, and token/cost metadata.\n- Add idempotency keys for side-effect tools and bounded retry/timeout policy.\n- Document degraded modes for missing analytics, unavailable provider, and interrupted SSE streams.\n\n## Acceptance Criteria\n- Contract evals run locally without GPU, TikTok, or paid API calls.\n- Tool and provider failures return structured, user-visible errors.\n- Side-effect tools are idempotent or explicitly rejected on duplicate request.\n- Code review has replay artifacts for core agent flows.\n\n## Test Plan\n- Backend unit tests and fixture-based eval tests.\n- Manual local smoke test for interrupted/reconnected SSE stream."
     }
   ]
 }
