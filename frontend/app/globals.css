@@ -25,6 +25,10 @@ body {
   font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
+nextjs-portal {
+  display: none !important;
+}
+
 a {
   color: inherit;
   text-decoration: none;
@@ -44,11 +48,13 @@ code {
 .app-shell {
   display: grid;
   gap: 0;
-  grid-template-columns: 250px minmax(0, 1fr);
+  grid-template-areas: "sidebar workspace copilot";
+  grid-template-columns: 240px minmax(0, 1fr) 360px;
   min-height: 100vh;
 }
 
 .sidebar {
+  grid-area: sidebar;
   border-right: 1px solid #1e293b;
   background: linear-gradient(180deg, #0f172a 0%, #111827 100%);
   color: #f8fafc;
@@ -81,9 +87,11 @@ code {
 
 .workspace {
   display: grid;
+  grid-area: workspace;
   gap: 18px;
+  align-content: start;
   min-width: 0;
-  padding: 26px;
+  padding: 28px;
 }
 
 .topbar {
@@ -129,7 +137,15 @@ small {
 }
 
 .two-col {
-  grid-template-columns: minmax(0, 1.3fr) minmax(320px, 0.7fr);
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(0, 1.35fr) minmax(300px, 0.65fr);
+}
+
+.dashboard-layout {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: 1fr;
 }
 
 .editor-grid {
@@ -140,7 +156,7 @@ small {
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 8px;
-  padding: 16px;
+  padding: 18px;
 }
 
 .panel-head {
@@ -170,11 +186,11 @@ small {
 .table {
   align-items: center;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 7px;
   display: grid;
   gap: 10px;
-  margin-top: 9px;
-  padding: 11px;
+  margin-top: 8px;
+  padding: 10px 12px;
 }
 
 .header-grid {
@@ -197,7 +213,105 @@ small {
 }
 
 .dashboard-grid {
-  grid-template-columns: minmax(100px, 0.95fr) minmax(200px, 1.4fr) 0.7fr 0.9fr 0.5fr;
+  grid-template-columns: minmax(132px, 0.95fr) minmax(190px, 1.35fr) 118px minmax(128px, 0.9fr) 70px;
+}
+
+.dashboard-summary {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.stat-tile {
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  padding: 14px 16px;
+}
+
+.stat-tile span {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.stat-tile strong {
+  color: #111827;
+  font-size: 21px;
+  line-height: 1.15;
+}
+
+.stat-tile small {
+  color: #667085;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.job-row {
+  background: #ffffff;
+}
+
+.job-title {
+  min-width: 0;
+}
+
+.job-cell {
+  min-width: 0;
+}
+
+.job-title small {
+  display: block;
+  font-size: 12px;
+  margin-top: 3px;
+  overflow-wrap: anywhere;
+}
+
+.status-chip {
+  align-items: center;
+  border-radius: 999px;
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 700;
+  justify-content: center;
+  line-height: 1;
+  min-height: 28px;
+  padding: 7px 10px;
+  text-align: center;
+  white-space: nowrap;
+  width: fit-content;
+}
+
+.status-chip.queued {
+  background: #eef4ff;
+  border: 1px solid #bfd4ff;
+  color: #1d4f91;
+}
+
+.status-chip.running {
+  background: #ecfdf3;
+  border: 1px solid #bfe8cc;
+  color: #0f6f42;
+}
+
+.status-chip.review {
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  color: #9a4d0f;
+}
+
+.stage-text,
+.eta-text {
+  color: #455468;
+  font-size: 14px;
+}
+
+.eta-text {
+  font-weight: 700;
+  text-transform: lowercase;
 }
 
 .campaigns-grid {
@@ -218,12 +332,14 @@ small {
   border-radius: 8px;
   display: grid;
   gap: 12px;
-  grid-column: 2;
+  grid-area: copilot;
   grid-template-rows: auto minmax(180px, 1fr) auto auto;
-  margin: 0 26px 26px;
-  max-height: none;
+  margin: 16px 16px 16px 0;
+  max-height: calc(100vh - 32px);
   min-height: 0;
   padding: 16px;
+  position: sticky;
+  top: 16px;
   width: auto;
 }
 
@@ -435,9 +551,21 @@ small {
   font-size: 13px;
 }
 
-.policy strong {
-  color: var(--ok);
+.policy-state {
   font-size: 15px;
+  width: fit-content;
+}
+
+.policy-state.required {
+  color: #0f6f42;
+}
+
+.policy-state.experiment {
+  color: #8a5b12;
+}
+
+.policy-state.ok {
+  color: #344054;
 }
 
 .action-link {
@@ -530,21 +658,32 @@ small {
   text-align: right;
 }
 
-@media (max-width: 1080px) {
+@media (max-width: 1180px) {
   .app-shell {
-    grid-template-columns: 250px minmax(0, 1fr);
+    grid-template-areas:
+      "sidebar workspace"
+      "sidebar copilot";
+    grid-template-columns: 240px minmax(0, 1fr);
   }
 
   .copilot {
-    grid-column: 2;
+    margin: 0 28px 28px;
+    max-height: none;
+    position: static;
   }
 
   .two-col,
+  .dashboard-layout,
   .editor-grid {
     grid-template-columns: 1fr;
   }
 
-  .dashboard-grid,
+  .dashboard-summary {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 1080px) {
   .campaigns-grid,
   .assets-grid,
   .queue-grid,
@@ -557,37 +696,12 @@ small {
   }
 }
 
-@media (min-width: 1280px) {
-  .workspace {
-    padding-right: 402px;
-  }
-
-  .copilot {
-    box-shadow: 0 18px 42px rgba(15, 23, 42, 0.14);
-    margin: 0;
-    max-height: calc(100vh - 32px);
-    position: fixed;
-    right: 16px;
-    top: 16px;
-    width: 360px;
-    z-index: 20;
-  }
-}
-
-@media (min-width: 1280px) and (max-width: 1560px) {
-  .two-col {
-    grid-template-columns: 1fr;
-  }
-}
-
-@media (max-width: 1279px) {
-  .two-col {
-    grid-template-columns: 1fr;
-  }
-}
-
 @media (max-width: 840px) {
   .app-shell {
+    grid-template-areas:
+      "sidebar"
+      "workspace"
+      "copilot";
     grid-template-columns: 1fr;
   }
 
@@ -601,7 +715,6 @@ small {
   }
 
   .copilot {
-    grid-column: 1;
     margin: 0 20px 20px;
   }
 
@@ -609,7 +722,67 @@ small {
     display: grid;
   }
 
+  .dashboard-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .header-grid.dashboard-grid {
+    display: none;
+  }
+
+  .job-row.dashboard-grid {
+    align-items: start;
+    gap: 8px;
+    grid-template-columns: 1fr;
+    padding: 12px;
+  }
+
+  .job-row > * {
+    align-items: baseline;
+    display: grid;
+    gap: 8px;
+    grid-template-columns: 120px minmax(0, 1fr);
+  }
+
+  .job-row > *::before {
+    color: #64748b;
+    content: attr(data-label);
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+
+  .status-chip {
+    justify-self: start;
+  }
+
   .form-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 520px) {
+  .workspace {
+    padding: 16px;
+  }
+
+  .copilot {
+    margin: 0 16px 16px;
+  }
+
+  .topbar {
+    gap: 12px;
+  }
+
+  .status-row span {
+    font-size: 12px;
+  }
+
+  .panel {
+    padding: 14px;
+  }
+
+  .job-row > * {
     grid-template-columns: 1fr;
   }
 }
