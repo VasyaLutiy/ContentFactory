@@ -62,9 +62,15 @@ marked `status:approved`.
 
 ## Automatic Issue Closure
 
-Merged PRs into the default branch or an approved `plan/*` base branch trigger
-`.github/workflows/close-delivery-issues.yml`. The same workflow can be run
-manually with `workflow_dispatch` to reconcile a specific PR.
+While GitHub Actions are unavailable, CI and issue closure workflows are kept as
+manual `workflow_dispatch` jobs. After Actions are available again, restore
+automatic PR triggers for `.github/workflows/ci.yml` and
+`.github/workflows/close-delivery-issues.yml`.
+
+When automatic triggers are enabled, merged PRs into the default branch or an
+approved `plan/*` base branch trigger `.github/workflows/close-delivery-issues.yml`.
+The same workflow can be run manually with `workflow_dispatch` to reconcile a
+specific PR.
 
 - To close completed Batch issues, use explicit closing references in the PR
   title or description, for example `Closes batches: #9 #10`.

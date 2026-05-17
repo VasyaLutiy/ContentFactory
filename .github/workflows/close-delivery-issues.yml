@@ -1,8 +1,6 @@
 name: Close Delivery Issues
 
 on:
-  pull_request_target:
-    types: [closed]
   workflow_dispatch:
     inputs:
       pr_number:
@@ -17,7 +15,6 @@ permissions:
 
 jobs:
   close:
-    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
