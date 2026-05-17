@@ -2,9 +2,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-import subprocess
 
+from app.artifacts.storage import ArtifactStorage
+from app.integrations.scripts.execution import ExpectedArtifact, LegacyScriptResult, run_legacy_command
 from app.integrations.scripts.legacy_paths import legacy_script_path
+from app.schemas.common import AssetKind
 
 
 @dataclass(frozen=True)
@@ -42,10 +44,21 @@ def build_expand_ltx_command(request: ExpandLtxRequest) -> list[str]:
     return cmd
 
 
-def run_expand_ltx(request: ExpandLtxRequest) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
+def expected_expand_ltx_artifacts(request: ExpandLtxRequest) -> tuple[ExpectedArtifact, ...]:
+    if request.out is None:
+        return ()
+    return (ExpectedArtifact(request.out, AssetKind.WORKFLOW),)
+
+
+def run_expand_ltx(
+    request: ExpandLtxRequest,
+    *,
+    storage: ArtifactStorage | None = None,
+    namespace: str | None = None,
+) -> LegacyScriptResult:
+    return run_legacy_command(
         build_expand_ltx_command(request),
-        check=True,
-        capture_output=True,
-        text=True,
+        expected_artifacts=expected_expand_ltx_artifacts(request),
+        storage=storage,
+        namespace=namespace,
     )
