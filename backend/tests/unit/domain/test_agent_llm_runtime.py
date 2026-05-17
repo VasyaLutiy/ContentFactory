@@ -1,9 +1,11 @@
 from __future__ import annotations
 
-from app.domain.services.agent_llm_runtime import AgentLLMRuntime
+import pytest
+
+from app.domain.services.agent_llm_runtime import AgentLLMRuntime, AgentRuntimeError
 from app.domain.services.agent_prompt_registry import AgentPromptRegistry, PromptFallbackMode
 from app.domain.services.agent_tool_registry import build_default_agent_tool_registry
-from app.providers.llm.types import LLMCapabilities, LLMRequest, LLMResponse
+from app.providers.llm.types import LLMCapabilities, LLMProviderTimeout, LLMRequest, LLMResponse
 
 
 class _RecordingLLMProvider:
@@ -15,6 +17,15 @@ class _RecordingLLMProvider:
     async def create_response(self, request: LLMRequest) -> LLMResponse:
         self.requests.append(request)
         return LLMResponse(text="done", model=request.model or "test-model")
+
+
+class _TimeoutLLMProvider:
+    def __init__(self) -> None:
+        self.name = "openai"
+        self.capabilities = LLMCapabilities(True, False, True)
+
+    async def create_response(self, request: LLMRequest) -> LLMResponse:
+        raise LLMProviderTimeout("slow")
 
 
 def test_runtime_attaches_read_only_tool_specs_when_native_tool_calling(
@@ -88,6 +99,20 @@ def test_runtime_forwards_generation_controls(tmp_path, monkeypatch) -> None:
     assert request.max_tokens == 333
     assert request.temperature == 0.1
     assert request.messages[-1].content == "Draft captions."
+
+
+def test_runtime_normalizes_provider_timeouts(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("CONTENT_FACTORY_ARTIFACT_ROOT", str(tmp_path))
+    runtime = AgentLLMRuntime(
+        prompt_registry=AgentPromptRegistry(),
+        tool_registry=build_default_agent_tool_registry(),
+        llm_provider=_TimeoutLLMProvider(),
+    )
+
+    with pytest.raises(AgentRuntimeError, match="timed out") as exc:
+        _run(runtime.respond(profile_key="operator", user_message="Inspect artifacts."))
+
+    assert exc.value.code == "provider_timeout"
 
 
 def _run(coro):

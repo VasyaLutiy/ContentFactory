@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import StrEnum
@@ -133,6 +134,8 @@ class AgentToolAuditSink:
 
 
 class AgentToolRegistry:
+    _EXECUTOR = ThreadPoolExecutor(max_workers=4, thread_name_prefix="agent-tool")
+
     def __init__(self, audit_sink: AgentToolAuditSink | None = None) -> None:
         self._tools: dict[str, AgentTool] = {}
         self._audit_sink = audit_sink
@@ -208,7 +211,21 @@ class AgentToolRegistry:
             )
         else:
             try:
-                result = tool.handler(input_data)
+                result = self._execute_with_timeout(
+                    tool=tool,
+                    input_data=input_data,
+                )
+            except TimeoutError:
+                result = AgentToolResult.failure(
+                    code="tool_timeout",
+                    message=(
+                        f"Tool {name!r} timed out after {tool.metadata.timeout_seconds:.2f}s."
+                    ),
+                    details={
+                        "tool_name": name,
+                        "timeout_seconds": tool.metadata.timeout_seconds,
+                    },
+                )
             except Exception as exc:
                 result = AgentToolResult.failure(
                     code="tool_execution_failed",
@@ -227,7 +244,30 @@ class AgentToolRegistry:
                 created_at=datetime.now(timezone.utc),
             )
         )
+        error_code = result.error.code if result.error else None
+        logger.info(
+            "agent_tool_execution",
+            extra={
+                "session_id": (context_snapshot or {}).get("session_id"),
+                "message_id": (context_snapshot or {}).get("message_id"),
+                "tool_name": name,
+                "latency_ms": max(0, int((perf_counter() - started) * 1000)),
+                "timeout_seconds": tool.metadata.timeout_seconds,
+                "retry_count": 0,
+                "status": result.status.value,
+                "error_code": error_code,
+            },
+        )
         return result
+
+    @staticmethod
+    def _execute_with_timeout(*, tool: AgentTool, input_data: Mapping[str, Any]) -> AgentToolResult:
+        future = AgentToolRegistry._EXECUTOR.submit(tool.handler, input_data)
+        try:
+            return future.result(timeout=tool.metadata.timeout_seconds)
+        except FutureTimeoutError as exc:
+            future.cancel()
+            raise TimeoutError("Tool execution timed out") from exc
 
     def _record_audit(self, record: AgentToolCallRecord) -> None:
         if not self._audit_sink:

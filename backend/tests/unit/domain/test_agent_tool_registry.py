@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import asdict
 import json
+import time
 
 from app.core.config import get_settings
 from app.db.repos.agent_session import AgentSessionRepository
@@ -12,6 +13,7 @@ from app.domain.services.agent_tool_registry import (
     AgentToolAuditSink,
     AgentToolCallRecord,
     AgentToolMetadata,
+    AgentToolResult,
     AgentToolResultStatus,
     AgentToolSafetyClass,
     build_default_agent_tool_registry,
@@ -124,6 +126,31 @@ def test_registry_blocks_destructive_tools_without_executing_handler(tmp_path, m
     assert result.error.code == "approval_required"
     assert result.error.details["safety_class"] == "destructive"
     assert invoked["called"] is False
+
+
+def test_registry_times_out_slow_read_only_tools(tmp_path, monkeypatch) -> None:
+    registry = _registry(tmp_path, monkeypatch)
+
+    registry.register(
+        AgentTool(
+            metadata=AgentToolMetadata(
+                name="slow_read",
+                description="Sleeps before returning.",
+                input_schema={"type": "object", "additionalProperties": False},
+                output_schema={"type": "object"},
+                safety_class=AgentToolSafetyClass.READ_ONLY,
+                timeout_seconds=0.01,
+                cost_hint="none",
+            ),
+            handler=lambda _input: _slow_success(),
+        )
+    )
+
+    result = registry.execute("slow_read", {})
+
+    assert result.status == AgentToolResultStatus.FAILED
+    assert result.error is not None
+    assert result.error.code == "tool_timeout"
 
 
 def test_read_only_tools_return_deterministic_fixture_results(tmp_path, monkeypatch) -> None:
@@ -322,3 +349,8 @@ def _write_tool_fixtures(tmp_path) -> dict[str, str]:
 def _mark_invoked(state: dict[str, bool]):
     state["called"] = True
     raise AssertionError("handler should not be called for non-read-only tools")
+
+
+def _slow_success():
+    time.sleep(0.05)
+    return AgentToolResult.success(output={"ok": True})

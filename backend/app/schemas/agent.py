@@ -72,6 +72,7 @@ class ApprovalDecisionRequest(BaseModel):
 class CreateRenderJobRequest(BaseModel):
     approval_id: int = Field(gt=0)
     episode_id: int = Field(gt=0)
+    idempotency_key: str | None = Field(default=None, min_length=1, max_length=120)
 
 
 class RenderJobCreateResponse(BaseModel):

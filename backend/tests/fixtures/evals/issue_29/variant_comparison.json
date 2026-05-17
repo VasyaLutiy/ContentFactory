@@ -1,0 +1,57 @@
+{
+  "flow": "variant_comparison",
+  "artifacts": [
+    {
+      "path": "job-1/video/clip-a.mp4",
+      "content": "video-a"
+    },
+    {
+      "path": "job-1/video/clip-a.mp4.metadata.json",
+      "json": {
+        "duration_seconds": 11.2,
+        "metrics": {
+          "retention_rate": 0.44
+        }
+      }
+    },
+    {
+      "path": "job-1/video/clip-b.mp4",
+      "content": "video-variant-longer"
+    },
+    {
+      "path": "job-1/video/clip-b.mp4.metadata.json",
+      "json": {
+        "duration_seconds": 12.7,
+        "metrics": {
+          "retention_rate": 0.38
+        }
+      }
+    }
+  ],
+  "tool_calls": [
+    {
+      "name": "compare_variants",
+      "input": {
+        "artifact_ids": [
+          "job-1/video/clip-a.mp4",
+          "job-1/video/clip-b.mp4"
+        ]
+      }
+    }
+  ],
+  "claims": [
+    {
+      "type": "artifact_ref",
+      "artifact_id": "job-1/video/clip-a.mp4"
+    },
+    {
+      "type": "artifact_ref",
+      "artifact_id": "job-1/video/clip-b.mp4"
+    },
+    {
+      "type": "output",
+      "field": "largest_artifact_id",
+      "value": "job-1/video/clip-b.mp4"
+    }
+  ]
+}

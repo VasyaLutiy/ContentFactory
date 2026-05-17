@@ -1,0 +1,33 @@
+{
+  "flow": "ungrounded_stat_claim",
+  "artifacts": [
+    {
+      "path": "job-1/video/clip.mp4",
+      "content": "video-main"
+    },
+    {
+      "path": "job-1/json/clip.analytics.json",
+      "json": {
+        "metrics": {
+          "views": 1200,
+          "retention_rate": 0.42
+        }
+      }
+    }
+  ],
+  "tool_calls": [
+    {
+      "name": "analyze_tiktok_stats",
+      "input": {
+        "namespace": "job-1"
+      }
+    }
+  ],
+  "claims": [
+    {
+      "type": "metric",
+      "name": "views",
+      "value": 999999
+    }
+  ]
+}
