@@ -1,5 +1,6 @@
 from app.db.models.agent_message import AgentMessageModel
 from app.db.models.agent_session import AgentSessionModel
+from app.db.models.agent_tool_call import AgentToolCallModel
 from app.db.models.campaign import CampaignModel
 from app.db.models.character import CharacterModel
 from app.db.models.episode import EpisodeModel
@@ -10,6 +11,7 @@ from app.db.models.voice_line import VoiceLineModel
 __all__ = [
     "AgentSessionModel",
     "AgentMessageModel",
+    "AgentToolCallModel",
     "CampaignModel",
     "CharacterModel",
     "EpisodeModel",

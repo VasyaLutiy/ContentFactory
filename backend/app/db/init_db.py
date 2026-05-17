@@ -2,6 +2,7 @@ from app.db.base import Base
 from app.db.models import (  # noqa: F401
     agent_message,
     agent_session,
+    agent_tool_call,
     campaign,
     character,
     episode,
