@@ -18,6 +18,7 @@ class Settings:
     artifact_root: Path
     comfy_url: str
     enable_docs: bool
+    database_url: str
 
 
 @lru_cache
@@ -33,4 +34,5 @@ def get_settings() -> Settings:
         artifact_root=artifact_root,
         comfy_url=os.getenv("CONTENT_FACTORY_COMFY_URL", "http://localhost:8188"),
         enable_docs=_bool_env("CONTENT_FACTORY_ENABLE_DOCS", True),
+        database_url=os.getenv("CONTENT_FACTORY_DATABASE_URL", "sqlite+pysqlite:///:memory:"),
     )
