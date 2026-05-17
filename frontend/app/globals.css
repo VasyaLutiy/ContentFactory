@@ -44,7 +44,7 @@ code {
 .app-shell {
   display: grid;
   gap: 0;
-  grid-template-columns: 250px minmax(0, 1fr) 360px;
+  grid-template-columns: 250px minmax(0, 1fr);
   min-height: 100vh;
 }
 
@@ -214,12 +214,17 @@ small {
 
 .copilot {
   background: #f8fbff;
-  border-left: 1px solid var(--line);
+  border: 1px solid var(--line);
+  border-radius: 8px;
   display: grid;
   gap: 12px;
+  grid-column: 2;
   grid-template-rows: auto minmax(180px, 1fr) auto auto;
-  min-height: 100vh;
+  margin: 0 26px 26px;
+  max-height: none;
+  min-height: 0;
   padding: 16px;
+  width: auto;
 }
 
 .copilot-head {
@@ -482,10 +487,7 @@ small {
   }
 
   .copilot {
-    border-left: 0;
-    border-top: 1px solid var(--line);
-    grid-column: 1 / -1;
-    min-height: auto;
+    grid-column: 2;
   }
 
   .two-col,
@@ -506,6 +508,35 @@ small {
   }
 }
 
+@media (min-width: 1280px) {
+  .workspace {
+    padding-right: 402px;
+  }
+
+  .copilot {
+    box-shadow: 0 18px 42px rgba(15, 23, 42, 0.14);
+    margin: 0;
+    max-height: calc(100vh - 32px);
+    position: fixed;
+    right: 16px;
+    top: 16px;
+    width: 360px;
+    z-index: 20;
+  }
+}
+
+@media (min-width: 1280px) and (max-width: 1560px) {
+  .two-col {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 1279px) {
+  .two-col {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 840px) {
   .app-shell {
     grid-template-columns: 1fr;
@@ -518,6 +549,11 @@ small {
 
   .workspace {
     padding: 20px;
+  }
+
+  .copilot {
+    grid-column: 1;
+    margin: 0 20px 20px;
   }
 
   .topbar {
