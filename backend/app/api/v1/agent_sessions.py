@@ -1,6 +1,7 @@
 import json
 from collections.abc import Iterator
-from uuid import uuid4
+import logging
+from uuid import NAMESPACE_URL, uuid4, uuid5
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
@@ -27,6 +28,7 @@ from app.schemas.agent import (
 from app.workers.queue import render_queue
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 @router.post(
@@ -256,6 +258,8 @@ def create_render_job(
             code="approval_mismatch",
             message="Approval does not match render job",
             approval_id=payload.approval_id,
+            retryable=False,
+            status_code=status.HTTP_409_CONFLICT,
         )
         db.commit()
         raise HTTPException(
@@ -269,6 +273,8 @@ def create_render_job(
             code="approval_required",
             message="Approval required",
             approval_id=payload.approval_id,
+            retryable=False,
+            status_code=status.HTTP_409_CONFLICT,
         )
         db.commit()
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Approval required")
@@ -281,19 +287,58 @@ def create_render_job(
             code="approval_expired",
             message="Approval expired",
             approval_id=payload.approval_id,
+            retryable=False,
+            status_code=status.HTTP_409_CONFLICT,
         )
         db.commit()
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Approval expired")
-    job_id = str(uuid4())
+    job_id = _resolve_render_job_id(
+        session_id=session_id,
+        approval_id=approval.id,
+        episode_id=payload.episode_id,
+        idempotency_key=payload.idempotency_key,
+    )
     if not approval_repo.claim_render_job(approval, job_id=job_id):
         db.refresh(approval)
         if approval.render_job_id is not None:
+            if payload.idempotency_key and approval.render_job_id == job_id:
+                existing = render_queue.get(approval.render_job_id)
+                queue_recovered = existing is None
+                if existing is None:
+                    existing = render_queue.enqueue(
+                        episode_id=str(payload.episode_id),
+                        job_id=approval.render_job_id,
+                    )
+                logger.info(
+                    "render_job_create_idempotent_replay",
+                    extra={
+                        "session_id": session_id,
+                        "approval_id": approval.id,
+                        "episode_id": payload.episode_id,
+                        "job_id": approval.render_job_id,
+                        "idempotency_key_present": True,
+                        "queue_recovered": queue_recovered,
+                        "status": existing.status.value,
+                    },
+                )
+                return RenderJobCreateResponse(
+                    id=approval.render_job_id,
+                    episode_id=str(payload.episode_id),
+                    status=existing.status.value,
+                    approval_id=approval.id,
+                )
             _emit_error(
                 db,
                 session_id=session_id,
                 code="approval_consumed",
                 message="Approval already used",
                 approval_id=payload.approval_id,
+                retryable=False,
+                status_code=status.HTTP_409_CONFLICT,
+                details={
+                    "render_job_id": approval.render_job_id,
+                    "idempotency_key_present": payload.idempotency_key is not None,
+                },
             )
             db.commit()
             raise HTTPException(
@@ -309,6 +354,8 @@ def create_render_job(
                 code="approval_expired",
                 message="Approval expired",
                 approval_id=payload.approval_id,
+                retryable=False,
+                status_code=status.HTTP_409_CONFLICT,
             )
             db.commit()
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Approval expired")
@@ -318,6 +365,8 @@ def create_render_job(
             code="approval_required",
             message="Approval required",
             approval_id=payload.approval_id,
+            retryable=False,
+            status_code=status.HTTP_409_CONFLICT,
         )
         db.commit()
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Approval required")
@@ -330,6 +379,7 @@ def create_render_job(
             "approval_id": approval.id,
             "episode_id": approval.episode_id,
             "job_id": job_id,
+            "idempotency_key_present": payload.idempotency_key is not None,
         },
     )
     job_status = "queued"
@@ -342,6 +392,7 @@ def create_render_job(
             "episode_id": str(payload.episode_id),
             "status": job_status,
             "approval_id": approval.id,
+            "idempotency_key_present": payload.idempotency_key is not None,
         },
     )
     AgentEventRepository(db).create_event(
@@ -355,11 +406,39 @@ def create_render_job(
     )
     db.commit()
     job = render_queue.enqueue(episode_id=str(payload.episode_id), job_id=job_id)
+    logger.info(
+        "render_job_created",
+        extra={
+            "session_id": session_id,
+            "approval_id": approval.id,
+            "episode_id": payload.episode_id,
+            "job_id": job.id,
+            "status": job.status.value,
+            "idempotency_key_present": payload.idempotency_key is not None,
+        },
+    )
     return RenderJobCreateResponse(
         id=job.id,
         episode_id=job.episode_id,
         status=job.status.value,
         approval_id=approval.id,
+    )
+
+
+def _resolve_render_job_id(
+    *,
+    session_id: int,
+    approval_id: int,
+    episode_id: int,
+    idempotency_key: str | None,
+) -> str:
+    if not idempotency_key:
+        return str(uuid4())
+    return str(
+        uuid5(
+            NAMESPACE_URL,
+            f"agent-render-job:{session_id}:{approval_id}:{episode_id}:{idempotency_key}",
+        )
     )
 
 
@@ -396,13 +475,22 @@ def _emit_error(
     code: str,
     message: str,
     approval_id: int,
+    retryable: bool,
+    status_code: int,
+    details: dict | None = None,
 ) -> None:
+    payload = {
+        "status": "error",
+        "code": code,
+        "message": message,
+        "approval_id": approval_id,
+        "retryable": retryable,
+        "status_code": status_code,
+    }
+    if details:
+        payload["details"] = details
     AgentEventRepository(db).create_event(
         session_id=session_id,
         event_type="error",
-        payload={
-            "code": code,
-            "message": message,
-            "approval_id": approval_id,
-        },
+        payload=payload,
     )

@@ -167,3 +167,69 @@ def test_create_render_job_does_not_enqueue_before_event_persistence(client, mon
             json={"approval_id": approval_id, "episode_id": 11},
         )
     assert render_queue.list() == []
+
+
+def test_create_render_job_is_idempotent_for_same_key(client) -> None:
+    session_id = _create_session(client)
+
+    approval_response = client.post(
+        f"/api/v1/agent/sessions/{session_id}/approvals",
+        json={"episode_id": 51},
+    )
+    assert approval_response.status_code == 201
+    approval_id = approval_response.json()["id"]
+
+    approve_response = client.post(
+        f"/api/v1/agent/sessions/{session_id}/approvals/{approval_id}/approve",
+        json={"decided_by": "ops-reviewer"},
+    )
+    assert approve_response.status_code == 200
+
+    first = client.post(
+        f"/api/v1/agent/sessions/{session_id}/render-jobs",
+        json={"approval_id": approval_id, "episode_id": 51, "idempotency_key": "launch-51"},
+    )
+    second = client.post(
+        f"/api/v1/agent/sessions/{session_id}/render-jobs",
+        json={"approval_id": approval_id, "episode_id": 51, "idempotency_key": "launch-51"},
+    )
+
+    assert first.status_code == 201
+    assert second.status_code == 201
+    assert second.json()["id"] == first.json()["id"]
+    assert len(render_queue.list()) == 1
+
+
+def test_create_render_job_idempotent_replay_recovers_missing_queue_entry(client) -> None:
+    session_id = _create_session(client)
+
+    approval_response = client.post(
+        f"/api/v1/agent/sessions/{session_id}/approvals",
+        json={"episode_id": 52},
+    )
+    assert approval_response.status_code == 201
+    approval_id = approval_response.json()["id"]
+
+    approve_response = client.post(
+        f"/api/v1/agent/sessions/{session_id}/approvals/{approval_id}/approve",
+        json={"decided_by": "ops-reviewer"},
+    )
+    assert approve_response.status_code == 200
+
+    first = client.post(
+        f"/api/v1/agent/sessions/{session_id}/render-jobs",
+        json={"approval_id": approval_id, "episode_id": 52, "idempotency_key": "launch-52"},
+    )
+    assert first.status_code == 201
+    with render_queue._lock:
+        render_queue._queue.clear()
+        render_queue._jobs.clear()
+
+    replay = client.post(
+        f"/api/v1/agent/sessions/{session_id}/render-jobs",
+        json={"approval_id": approval_id, "episode_id": 52, "idempotency_key": "launch-52"},
+    )
+
+    assert replay.status_code == 201
+    assert replay.json()["id"] == first.json()["id"]
+    assert [job.id for job in render_queue.list()] == [first.json()["id"]]

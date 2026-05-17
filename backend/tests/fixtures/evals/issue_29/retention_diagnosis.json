@@ -1,0 +1,60 @@
+{
+  "flow": "retention_diagnosis",
+  "artifacts": [
+    {
+      "path": "job-1/video/clip.mp4",
+      "content": "video-main"
+    },
+    {
+      "path": "job-1/video/clip.mp4.metadata.json",
+      "json": {
+        "duration_seconds": 12.5,
+        "width": 1080,
+        "height": 1920,
+        "metrics": {
+          "retention_rate": 0.42
+        }
+      }
+    },
+    {
+      "path": "job-1/json/clip.analytics.json",
+      "json": {
+        "metrics": {
+          "views": 1200,
+          "likes": 88,
+          "retention_rate": 0.42
+        }
+      }
+    }
+  ],
+  "tool_calls": [
+    {
+      "name": "inspect_video",
+      "input": {
+        "artifact_id": "job-1/video/clip.mp4"
+      }
+    },
+    {
+      "name": "analyze_tiktok_stats",
+      "input": {
+        "namespace": "job-1"
+      }
+    }
+  ],
+  "claims": [
+    {
+      "type": "artifact_ref",
+      "artifact_id": "job-1/video/clip.mp4"
+    },
+    {
+      "type": "metric",
+      "name": "retention_rate",
+      "value": 0.42
+    },
+    {
+      "type": "metric",
+      "name": "views",
+      "value": 1200
+    }
+  ]
+}

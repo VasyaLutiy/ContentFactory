@@ -1,0 +1,23 @@
+{
+  "flow": "approval_required_render_request",
+  "episode_id": 44,
+  "steps": [
+    {
+      "action": "create_session",
+      "title": "Issue 29 replay"
+    },
+    {
+      "action": "request_approval"
+    },
+    {
+      "action": "create_render_job",
+      "expect_status": 409,
+      "expect_detail": "Approval required"
+    }
+  ],
+  "expected_event_types": [
+    "approval.required",
+    "error"
+  ],
+  "required_error_code": "approval_required"
+}

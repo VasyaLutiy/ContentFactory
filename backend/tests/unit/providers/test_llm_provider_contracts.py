@@ -55,6 +55,28 @@ class RecordingTransport(OpenAICompatibleTransport):
         return self.response
 
 
+class _FlakyOnceTransport(OpenAICompatibleTransport):
+    def __init__(self) -> None:
+        self.calls = 0
+
+    async def create_chat_completion(
+        self,
+        *,
+        base_url: str | None,
+        api_key: str | None,
+        payload: Mapping[str, Any],
+        timeout_seconds: float,
+    ) -> Mapping[str, Any]:
+        self.calls += 1
+        if self.calls == 1:
+            raise TimeoutError("slow")
+        return {
+            "model": "compat-model",
+            "choices": [{"message": {"content": "ok-after-retry"}, "finish_reason": "stop"}],
+            "usage": {"total_tokens": 9},
+        }
+
+
 def test_llm_settings_parse_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("CONTENT_FACTORY_LLM_PROVIDER", "openai")
     monkeypatch.setenv("CONTENT_FACTORY_LLM_BASE_URL", "https://example.invalid/v1")
@@ -249,17 +271,50 @@ def test_openai_compatible_provider_normalizes_timeout(
     get_settings.cache_clear()
 
 
-def test_openai_compatible_provider_normalizes_generic_errors() -> None:
+def test_openai_compatible_provider_retries_once_on_timeout() -> None:
+    get_settings.cache_clear()
     provider = OpenAICompatibleProvider(
         name="custom_openai_compat",
         settings=get_settings(),
-        transport=RecordingTransport(error=RuntimeError("boom")),
+        transport=_FlakyOnceTransport(),
+    )
+
+    response = asyncio.run(
+        provider.create_response(LLMRequest(messages=[LLMMessage(role="user", content="hi")]))
+    )
+
+    assert response.text == "ok-after-retry"
+    get_settings.cache_clear()
+
+
+def test_openai_compatible_provider_normalizes_generic_errors() -> None:
+    transport = RecordingTransport(error=RuntimeError("boom"))
+    provider = OpenAICompatibleProvider(
+        name="custom_openai_compat",
+        settings=get_settings(),
+        transport=transport,
     )
 
     with pytest.raises(LLMProviderError, match="boom"):
         asyncio.run(
             provider.create_response(LLMRequest(messages=[LLMMessage(role="user", content="hi")]))
         )
+    assert len(transport.calls) == 1
+
+
+def test_openai_compatible_provider_does_not_retry_provider_errors() -> None:
+    transport = RecordingTransport(error=LLMProviderError("bad request"))
+    provider = OpenAICompatibleProvider(
+        name="custom_openai_compat",
+        settings=get_settings(),
+        transport=transport,
+    )
+
+    with pytest.raises(LLMProviderError, match="bad request"):
+        asyncio.run(
+            provider.create_response(LLMRequest(messages=[LLMMessage(role="user", content="hi")]))
+        )
+    assert len(transport.calls) == 1
 
 
 def test_build_provider_rejects_unknown_provider(monkeypatch: pytest.MonkeyPatch) -> None:

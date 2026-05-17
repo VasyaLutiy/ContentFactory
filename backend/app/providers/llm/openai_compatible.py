@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import AsyncIterator, Mapping
 import json
+import logging
 from typing import Any
 from urllib import error, request
 
@@ -17,6 +18,8 @@ from app.providers.llm.types import (
     LLMResponse,
     LLMStreamEvent,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class OpenAICompatibleTransport:
@@ -78,6 +81,9 @@ class UrlLibOpenAICompatibleTransport(OpenAICompatibleTransport):
 
 
 class OpenAICompatibleProvider:
+    _MAX_RETRIES = 1
+    _RETRY_BACKOFF_SECONDS = 0.2
+
     def __init__(
         self,
         *,
@@ -99,23 +105,85 @@ class OpenAICompatibleProvider:
         if request.requires_vision and not self.capabilities.supports_vision:
             raise LLMProviderError("LLM provider does not support vision requests.")
         payload = self._payload(request)
-        try:
-            raw = await self._transport.create_chat_completion(
-                base_url=self._settings.llm_base_url,
-                api_key=self._settings.llm_api_key,
-                payload=payload,
-                timeout_seconds=self._settings.llm_timeout_seconds,
-            )
-        except TimeoutError as exc:
-            raise LLMProviderTimeout("LLM provider request timed out.") from exc
-        except asyncio.TimeoutError as exc:
-            raise LLMProviderTimeout("LLM provider request timed out.") from exc
-        except LLMProviderError:
-            raise
-        except Exception as exc:
-            raise LLMProviderError(f"LLM provider request failed: {exc}") from exc
+        raw: Mapping[str, Any] | None = None
+        last_error: Exception | None = None
+        retry_count = 0
+        for attempt in range(self._MAX_RETRIES + 1):
+            try:
+                raw = await self._transport.create_chat_completion(
+                    base_url=self._settings.llm_base_url,
+                    api_key=self._settings.llm_api_key,
+                    payload=payload,
+                    timeout_seconds=self._settings.llm_timeout_seconds,
+                )
+                retry_count = attempt
+                break
+            except (TimeoutError, asyncio.TimeoutError) as exc:
+                last_error = exc
+                if attempt < self._MAX_RETRIES:
+                    await asyncio.sleep(self._RETRY_BACKOFF_SECONDS)
+                    continue
+                logger.warning(
+                    "llm_provider_timeout",
+                    extra={
+                        "provider": self.name,
+                        "model": payload.get("model"),
+                        "timeout_seconds": self._settings.llm_timeout_seconds,
+                        "retry_count": attempt,
+                        "status": "failed",
+                        "error_code": "provider_timeout",
+                    },
+                )
+                raise LLMProviderTimeout("LLM provider request timed out.") from exc
+            except LLMProviderError as exc:
+                last_error = exc
+                logger.warning(
+                    "llm_provider_error",
+                    extra={
+                        "provider": self.name,
+                        "model": payload.get("model"),
+                        "timeout_seconds": self._settings.llm_timeout_seconds,
+                        "retry_count": attempt,
+                        "status": "failed",
+                        "error_code": "provider_error",
+                    },
+                )
+                raise
+            except Exception as exc:
+                last_error = exc
+                logger.warning(
+                    "llm_provider_error",
+                    extra={
+                        "provider": self.name,
+                        "model": payload.get("model"),
+                        "timeout_seconds": self._settings.llm_timeout_seconds,
+                        "retry_count": attempt,
+                        "status": "failed",
+                        "error_code": "provider_error",
+                    },
+                )
+                raise LLMProviderError(f"LLM provider request failed: {exc}") from exc
 
-        return self._response(raw, model=str(payload["model"]))
+        if raw is None:
+            if isinstance(last_error, (TimeoutError, asyncio.TimeoutError)):
+                raise LLMProviderTimeout("LLM provider request timed out.") from last_error
+            raise LLMProviderError("LLM provider request failed.")
+        response = self._response(raw, model=str(payload["model"]))
+        logger.info(
+            "llm_provider_response",
+            extra={
+                "provider": self.name,
+                "model": response.model,
+                "timeout_seconds": self._settings.llm_timeout_seconds,
+                "retry_count": retry_count,
+                "tokens_prompt": response.usage.get("prompt_tokens"),
+                "tokens_completion": response.usage.get("completion_tokens"),
+                "estimated_cost": response.usage.get("estimated_cost"),
+                "status": "succeeded",
+                "error_code": None,
+            },
+        )
+        return response
 
     async def createResponse(self, request: LLMRequest) -> LLMResponse:  # noqa: N802
         return await self.create_response(request)

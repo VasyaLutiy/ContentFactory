@@ -1,0 +1,56 @@
+{
+  "flow": "caption_pack",
+  "artifacts": [
+    {
+      "path": "job-1/video/clip.mp4",
+      "content": "video-main"
+    },
+    {
+      "path": "job-1/json/clip.analytics.json",
+      "json": {
+        "metrics": {
+          "views": 1200,
+          "retention_rate": 0.42
+        }
+      }
+    }
+  ],
+  "tool_calls": [
+    {
+      "name": "list_artifacts",
+      "input": {
+        "namespace": "job-1"
+      }
+    },
+    {
+      "name": "analyze_tiktok_stats",
+      "input": {
+        "namespace": "job-1"
+      }
+    }
+  ],
+  "caption_pack": {
+    "caption": "The first 2 seconds decide the winner. We tightened the hook and kept the payoff clear.",
+    "hashtags": [
+      "#contentfactory",
+      "#hooktest",
+      "#shortform"
+    ],
+    "first_comment": "Variant A held 42% retention, so next test is a faster opening line.",
+    "strategy_note": "Grounded to local analytics fixture and artifact refs only.",
+    "artifact_refs": [
+      "job-1/video/clip.mp4"
+    ]
+  },
+  "claims": [
+    {
+      "type": "artifact_ref",
+      "artifact_id": "job-1/video/clip.mp4"
+    },
+    {
+      "type": "metric",
+      "name": "retention_rate",
+      "value": 0.42
+    }
+  ]
+}
