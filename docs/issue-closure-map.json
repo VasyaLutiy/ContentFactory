@@ -57,6 +57,30 @@
     {
       "batch": 20,
       "title": "Batch: Production Hardening And Local Deployment"
+    },
+    {
+      "batch": 24,
+      "title": "Batch: Agent Chat Shell And Session API"
+    },
+    {
+      "batch": 25,
+      "title": "Batch: LLM Provider And Prompt Contracts"
+    },
+    {
+      "batch": 26,
+      "title": "Batch: Typed Agent Tool Registry And Read-Only Tools"
+    },
+    {
+      "batch": 27,
+      "title": "Batch: Approval Gates And Controlled Job Launch"
+    },
+    {
+      "batch": 28,
+      "title": "Batch: Caption Pack And Production Recommendations"
+    },
+    {
+      "batch": 29,
+      "title": "Batch: Agent Contract Evals And Hardening"
     }
   ],
   "epics": [
@@ -94,6 +118,11 @@
       "epic": 7,
       "title": "Epic: Test Harness And Delivery Workflow",
       "batches": [8, 9, 10, 11, 12, 13, 16, 17, 20]
+    },
+    {
+      "epic": 23,
+      "title": "Epic: Factory Agent Orchestrator",
+      "batches": [24, 25, 26, 27, 28, 29]
     }
   ]
 }
