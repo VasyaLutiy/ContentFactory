@@ -1,0 +1,149 @@
+{
+  "repository": "VasyaLutiy/ContentFactory",
+  "labels": [
+    {"name": "type:epic", "color": "5319e7", "description": "High-level delivery area"},
+    {"name": "type:batch", "color": "1d76db", "description": "Reviewable implementation batch"},
+    {"name": "area:backend", "color": "0e8a16", "description": "FastAPI, persistence, workers"},
+    {"name": "area:frontend", "color": "fbca04", "description": "Next.js UI"},
+    {"name": "area:providers", "color": "c2e0c6", "description": "ComfyUI, Azure, voice, ffmpeg adapters"},
+    {"name": "area:analytics", "color": "bfdadc", "description": "TikTok analytics and recommendations"},
+    {"name": "area:ops", "color": "d4c5f9", "description": "Git, CI, deployment, observability"},
+    {"name": "area:tests", "color": "fef2c0", "description": "Automated tests and fixtures"},
+    {"name": "priority:p0", "color": "b60205", "description": "Critical path"},
+    {"name": "priority:p1", "color": "d93f0b", "description": "Important"},
+    {"name": "priority:p2", "color": "fbca04", "description": "Useful but not immediate"},
+    {"name": "status:needs-review", "color": "ededed", "description": "Waiting for owner review"},
+    {"name": "status:approved", "color": "0e8a16", "description": "Approved for implementation"},
+    {"name": "blocked", "color": "000000", "description": "Blocked by dependency or credentials"}
+  ],
+  "milestones": [
+    {"title": "M0: Repo And Workflow Bootstrap", "description": "Git workflow, labels, issue templates, issue backlog, and initial CI skeleton."},
+    {"title": "M1: Foundation And Control Plane", "description": "API, persistence, state machine, queue foundation, and tests."},
+    {"title": "M2: Render Pipeline Integration", "description": "Controlled adapters around current scripts and ComfyUI render flow."},
+    {"title": "M3: Factory UI Vertical Slice", "description": "Episode editor, text beats, validation, and render queue."},
+    {"title": "M4: Analytics And Recommendation Loop", "description": "TikTok snapshots, KPI comparisons, and recommendations."},
+    {"title": "M5: Production Hardening", "description": "Observability, deployment, backups, and integration test hardening."}
+  ],
+  "issues": [
+    {
+      "title": "Epic: Backend Core And Persistence",
+      "milestone": "M1: Foundation And Control Plane",
+      "labels": ["type:epic", "area:backend", "priority:p0", "status:needs-review"],
+      "body": "## Goal\nCreate the FastAPI control plane and durable domain state for ContentFactory.\n\n## Scope\nConfig, health, DB session, migrations, SQLAlchemy/Pydantic models, CRUD boundaries for Campaign, Character, Episode, Scene, VoiceLine, TextBeat, Asset, Export.\n\n## Non-Goals\nNo real ComfyUI render execution in this epic.\n\n## Acceptance Criteria\n- API starts locally.\n- Core models persist in dev DB.\n- CRUD endpoints are covered by tests.\n- Secrets remain outside DB."
+    },
+    {
+      "title": "Epic: Job Queue And Render State",
+      "milestone": "M1: Foundation And Control Plane",
+      "labels": ["type:epic", "area:backend", "area:ops", "priority:p0", "status:needs-review"],
+      "body": "## Goal\nIntroduce worker-backed RenderJob and RenderStep execution with retry/cancel semantics.\n\n## Scope\nQueue setup, worker process, step state machine, structured step logs, retry policy, cancellation boundary.\n\n## Acceptance Criteria\n- RenderJob can be created and enqueued.\n- Worker updates step state.\n- Failed retryable steps can be retried without losing artifacts."
+    },
+    {
+      "title": "Epic: Legacy Script And Provider Adapters",
+      "milestone": "M2: Render Pipeline Integration",
+      "labels": ["type:epic", "area:providers", "priority:p0", "status:needs-review"],
+      "body": "## Goal\nWrap existing generation scripts without changing creative behavior.\n\n## Scope\nAdapters for make_short.py, expand_ltx_workflow.py, add_elevenlabs_voice.py, add_voice.py, tt_analytics.py, track_snapshot.py.\n\n## Acceptance Criteria\n- Adapters expose typed inputs/outputs.\n- Existing defaults are preserved.\n- Logs and artifacts are captured."
+    },
+    {
+      "title": "Epic: Narrative Overlay And Export Policy",
+      "milestone": "M2: Render Pipeline Integration",
+      "labels": ["type:epic", "area:backend", "area:providers", "priority:p0", "status:needs-review"],
+      "body": "## Goal\nMake burned-in narrative text a first-class validated export requirement.\n\n## Scope\nTextBeat validation, safe-area policy, ffmpeg overlay provider, export metadata, no_text_experiment escape hatch.\n\n## Acceptance Criteria\n- Standard TikTok export fails without text starting by 0.3s.\n- no_text_experiment is explicit and stored.\n- Final MP4 has burned-in text metadata tracked."
+    },
+    {
+      "title": "Epic: Frontend Factory UI",
+      "milestone": "M3: Factory UI Vertical Slice",
+      "labels": ["type:epic", "area:frontend", "priority:p1", "status:needs-review"],
+      "body": "## Goal\nBuild the operator UI for campaign/episode creation, text beats, validation, and queue visibility.\n\n## Scope\nDashboard, Campaign Lab, Episode Editor, Storyboard, Text Beats timeline, Render Queue.\n\n## Acceptance Criteria\n- User can create and edit an episode.\n- UI validates text beats through backend.\n- Queue shows job status and errors."
+    },
+    {
+      "title": "Epic: Analytics And KPI Insights",
+      "milestone": "M4: Analytics And Recommendation Loop",
+      "labels": ["type:epic", "area:analytics", "priority:p1", "status:needs-review"],
+      "body": "## Goal\nPersist TikTok analytics snapshots and produce retention-focused comparisons.\n\n## Scope\nTikTok scrape adapter, snapshot DB ingestion, export/video ID linking, campaign analytics board, recommendation cards.\n\n## Acceptance Criteria\n- Snapshots are queryable by campaign/export.\n- Variants compare avg watch/full-watch/retention note.\n- On-screen text policy is included in analysis."
+    },
+    {
+      "title": "Epic: Test Harness And Delivery Workflow",
+      "milestone": "M1: Foundation And Control Plane",
+      "labels": ["type:epic", "area:tests", "area:ops", "priority:p0", "status:needs-review"],
+      "body": "## Goal\nKeep the project reviewable and safe through tests, CI, and disciplined git workflow.\n\n## Scope\npytest harness, fixtures, unit tests, GitHub issue/PR conventions, CI skeleton, optional nightly integration tests.\n\n## Acceptance Criteria\n- Unit tests run without GPU/TikTok.\n- CI runs lint/tests for backend and frontend skeleton.\n- Issues and PRs map to approved batches."
+    },
+    {
+      "title": "Batch: Repository Workflow And Issue Backlog",
+      "milestone": "M0: Repo And Workflow Bootstrap",
+      "labels": ["type:batch", "area:ops", "priority:p0", "status:needs-review"],
+      "body": "## Goal\nInitialize git workflow and owner-reviewable backlog.\n\n## Tasks\n- Add milestones/epics/batches document.\n- Add GitHub issue templates.\n- Add labels and issue backlog manifest.\n- Add script to sync labels, milestones, and issues when credentials are available.\n\n## Acceptance Criteria\n- Backlog can be reviewed before implementation.\n- Remote origin is configured.\n- Issue sync is reproducible.\n\n## Test Plan\n- Validate JSON manifest.\n- Run sync script in dry-run mode."
+    },
+    {
+      "title": "Batch: Backend Skeleton And Health API",
+      "milestone": "M1: Foundation And Control Plane",
+      "labels": ["type:batch", "area:backend", "priority:p0", "status:needs-review"],
+      "body": "## Goal\nStabilize the FastAPI project skeleton.\n\n## Tasks\n- Finalize backend package layout.\n- Add config and health checks.\n- Add API router conventions.\n- Add dependency placeholders for DB/worker.\n\n## Acceptance Criteria\n- API starts locally.\n- GET /api/v1/health returns runtime config summary.\n- No provider calls happen during startup.\n\n## Test Plan\n- Import app.\n- Exercise health endpoint with TestClient."
+    },
+    {
+      "title": "Batch: Core Domain Models And Migrations",
+      "milestone": "M1: Foundation And Control Plane",
+      "labels": ["type:batch", "area:backend", "priority:p0", "status:needs-review"],
+      "body": "## Goal\nIntroduce durable schema for factory records.\n\n## Tasks\n- Add SQLAlchemy setup and Alembic.\n- Model Campaign, Character, Episode, Scene, VoiceLine, OnScreenTextBeat.\n- Model Asset, RenderJob, RenderStep, Export, AnalyticsSnapshot.\n\n## Acceptance Criteria\n- Migrations create all core tables.\n- Models have relationships and indexes for job/export lookup.\n\n## Test Plan\n- Migration smoke test on SQLite/Postgres dev DB.\n- Repository unit tests."
+    },
+    {
+      "title": "Batch: Episode CRUD And Text Beat Validation API",
+      "milestone": "M1: Foundation And Control Plane",
+      "labels": ["type:batch", "area:backend", "priority:p0", "status:needs-review"],
+      "body": "## Goal\nExpose the first real editor-facing API surface.\n\n## Tasks\n- CRUD endpoints for Campaign and Episode.\n- Bulk upsert for scenes, voice lines, text beats.\n- Validate-export endpoint using server-side text policy.\n\n## Acceptance Criteria\n- UI can persist an episode draft.\n- Standard TikTok export validation fails without first hook text.\n\n## Test Plan\n- API tests for valid/invalid text beats.\n- CRUD tests for episode draft lifecycle."
+    },
+    {
+      "title": "Batch: Render Job Queue Foundation",
+      "milestone": "M1: Foundation And Control Plane",
+      "labels": ["type:batch", "area:backend", "area:ops", "priority:p0", "status:needs-review"],
+      "body": "## Goal\nCreate queue-backed render job control without real rendering yet.\n\n## Tasks\n- Select and wire Redis/RQ or Celery.\n- Add worker entrypoint.\n- Add POST /episodes/{id}/render.\n- Add GET/retry/cancel render job endpoints.\n\n## Acceptance Criteria\n- Job transitions queued -> running -> succeeded/failed in a fake task.\n- Retry/cancel semantics are enforced.\n\n## Test Plan\n- State machine tests.\n- Worker fake-task integration test."
+    },
+    {
+      "title": "Batch: ComfyUI Client And Workflow Validation",
+      "milestone": "M2: Render Pipeline Integration",
+      "labels": ["type:batch", "area:providers", "priority:p0", "status:needs-review"],
+      "body": "## Goal\nBuild the factory-owned ComfyUI adapter inspired by comfyui-mcp.\n\n## Tasks\n- HTTP client for /prompt, /history, /queue, /object_info.\n- Workflow validation for missing nodes, required inputs, broken links, model dropdown references.\n- Queue/status polling helper.\n\n## Acceptance Criteria\n- Validation runs before submit.\n- Comfy connection errors become structured provider errors.\n\n## Test Plan\n- Mock ComfyUI HTTP responses.\n- Golden workflow validation fixtures."
+    },
+    {
+      "title": "Batch: Legacy Render Script Adapters",
+      "milestone": "M2: Render Pipeline Integration",
+      "labels": ["type:batch", "area:providers", "priority:p0", "status:needs-review"],
+      "body": "## Goal\nWrap current generation scripts as typed provider adapters.\n\n## Tasks\n- Expand LTX workflow adapter.\n- make_short pass-through adapter.\n- ElevenLabs/F5 voice adapters.\n- ffmpeg command builders for mux/overlay/concat.\n\n## Acceptance Criteria\n- Adapters preserve current defaults.\n- Commands are inspectable before execution.\n- Outputs are registered as artifacts.\n\n## Test Plan\n- Unit tests with mocked subprocess and HTTP.\n- No GPU required."
+    },
+    {
+      "title": "Batch: Artifact Manager And Lineage",
+      "milestone": "M2: Render Pipeline Integration",
+      "labels": ["type:batch", "area:backend", "area:providers", "priority:p1", "status:needs-review"],
+      "body": "## Goal\nTrack every generated file as a managed asset.\n\n## Tasks\n- Artifact root layout.\n- Checksum and metadata capture.\n- Parent/child lineage between keyframe, clip, audio, export, screenshot.\n- Artifact lookup API.\n\n## Acceptance Criteria\n- Every render step output has an Asset record.\n- Retry does not overwrite prior artifacts silently.\n\n## Test Plan\n- tmp_path storage tests.\n- lineage repository tests."
+    },
+    {
+      "title": "Batch: Frontend Episode Editor Vertical Slice",
+      "milestone": "M3: Factory UI Vertical Slice",
+      "labels": ["type:batch", "area:frontend", "priority:p1", "status:needs-review"],
+      "body": "## Goal\nBuild the first usable operator flow.\n\n## Tasks\n- App shell and navigation.\n- Campaign/Episode creation screens.\n- Scene list editor.\n- Text Beats editor with backend validation call.\n- Render button wired to backend job endpoint.\n\n## Acceptance Criteria\n- User can create an episode draft and validate it.\n- UI blocks render when backend returns text policy errors.\n\n## Test Plan\n- Typecheck/build.\n- Component tests for validation states when test framework is added."
+    },
+    {
+      "title": "Batch: Render Queue UI",
+      "milestone": "M3: Factory UI Vertical Slice",
+      "labels": ["type:batch", "area:frontend", "priority:p1", "status:needs-review"],
+      "body": "## Goal\nMake long-running jobs observable from the UI.\n\n## Tasks\n- Jobs table.\n- Job details drawer.\n- Step timeline and logs.\n- Retry/cancel actions.\n\n## Acceptance Criteria\n- Operator sees active, failed, completed jobs.\n- Failed step shows error code and hint.\n\n## Test Plan\n- Mock API states for queued/running/failed/completed."
+    },
+    {
+      "title": "Batch: TikTok Analytics Ingestion",
+      "milestone": "M4: Analytics And Recommendation Loop",
+      "labels": ["type:batch", "area:analytics", "area:providers", "priority:p1", "status:needs-review"],
+      "body": "## Goal\nMove TikTok analytics from CSV-only files into queryable product state.\n\n## Tasks\n- Adapter around tt_analytics.py.\n- Snapshot parser and DB writer.\n- Attach TikTok video ID to Export.\n- Store scrape screenshot as artifact.\n\n## Acceptance Criteria\n- Snapshot records include avg watch, full-watch percent, retention note, views.\n- Snapshot links to export/campaign.\n\n## Test Plan\n- Fixture tests for saved CSV/JSON.\n- CDP scrape remains manual/integration-only."
+    },
+    {
+      "title": "Batch: Recommendation Cards",
+      "milestone": "M4: Analytics And Recommendation Loop",
+      "labels": ["type:batch", "area:analytics", "area:frontend", "priority:p2", "status:needs-review"],
+      "body": "## Goal\nGenerate actionable next-test recommendations from campaign variants.\n\n## Tasks\n- Compare variants by avg watch, full-watch percent, retention note.\n- Include on-screen text metadata in analysis.\n- Show recommendation cards in UI.\n\n## Acceptance Criteria\n- Recommendation includes reason, evidence, and suggested next hook/edit.\n\n## Test Plan\n- Deterministic scoring tests with fixtures."
+    },
+    {
+      "title": "Batch: Production Hardening And Local Deployment",
+      "milestone": "M5: Production Hardening",
+      "labels": ["type:batch", "area:ops", "area:tests", "priority:p2", "status:needs-review"],
+      "body": "## Goal\nMake the single-workstation deployment repeatable and recoverable.\n\n## Tasks\n- Docker Compose for API, worker, Redis, Postgres, frontend.\n- Structured logs.\n- Provider timeout/backoff policy.\n- Backup/export runbook.\n- Nightly integration test plan.\n\n## Acceptance Criteria\n- Local stack can be started and stopped from docs.\n- Worker restart preserves job/artifact state.\n\n## Test Plan\n- Compose smoke test.\n- Recovery runbook dry run."
+    }
+  ]
+}

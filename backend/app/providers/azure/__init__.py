@@ -1,0 +1,1 @@
+"""Azure image provider package."""
