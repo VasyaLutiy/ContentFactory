@@ -1,4 +1,5 @@
 import { AppShellNav } from "./app-shell-nav";
+import { CopilotPanel } from "./copilot-panel";
 
 export function AppShell({
   title,
@@ -36,6 +37,8 @@ export function AppShell({
 
         {children}
       </section>
+
+      <CopilotPanel />
     </main>
   );
 }
