@@ -1,8 +1,20 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+import os
 from pathlib import Path
-import subprocess
 
+from app.artifacts.storage import ArtifactStorage
+from app.integrations.scripts.execution import (
+    ExpectedArtifact,
+    LegacyScriptResult,
+    require_artifact_namespace,
+    run_legacy_command,
+)
 from app.integrations.scripts.legacy_paths import legacy_script_path
+from app.schemas.common import AssetKind
+
+
+def _comfy_tiktok_output_dir() -> Path:
+    return Path(os.getenv("CONTENT_FACTORY_COMFY_OUTPUT_ROOT", "/home/kosmoletc/ComfyUI/output")) / "tiktok"
 
 
 @dataclass(frozen=True)
@@ -36,10 +48,50 @@ def build_make_short_command(request: MakeShortRequest) -> list[str]:
     return cmd
 
 
-def run_make_short(request: MakeShortRequest) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
+def expected_make_short_artifacts(request: MakeShortRequest) -> tuple[ExpectedArtifact, ...]:
+    return (ExpectedArtifact(make_short_output_path(request), AssetKind.VIDEO),)
+
+
+def run_make_short(
+    request: MakeShortRequest,
+    *,
+    storage: ArtifactStorage | None = None,
+    namespace: str | None = None,
+) -> LegacyScriptResult:
+    require_artifact_namespace(storage=storage, namespace=namespace)
+    request = _with_namespaced_default_out(request, storage=storage, namespace=namespace)
+    for artifact in expected_make_short_artifacts(request):
+        artifact.path.parent.mkdir(parents=True, exist_ok=True)
+    return run_legacy_command(
         build_make_short_command(request),
-        check=True,
-        capture_output=True,
-        text=True,
+        expected_artifacts=expected_make_short_artifacts(request),
+        storage=storage,
+        namespace=namespace,
     )
+
+
+def make_short_output_path(request: MakeShortRequest) -> Path:
+    out_name = request.out or f"{_slugify(request.prompt)}.mp4"
+    out = Path(out_name)
+    if out.is_absolute():
+        return out
+    return _comfy_tiktok_output_dir() / out
+
+
+def _with_namespaced_default_out(
+    request: MakeShortRequest,
+    *,
+    storage: ArtifactStorage | None,
+    namespace: str | None,
+) -> MakeShortRequest:
+    if storage is None or request.out is not None:
+        return request
+    if namespace is None:
+        raise ValueError("namespace is required when artifact storage is enabled.")
+    return replace(request, out=f"{namespace}_{_slugify(request.prompt)}.mp4")
+
+
+def _slugify(text: str, max_len: int = 40) -> str:
+    out = "".join(char if char.isalnum() else "_" for char in text.lower())
+    out = "_".join(filter(None, out.split("_")))[:max_len]
+    return out or "short"
