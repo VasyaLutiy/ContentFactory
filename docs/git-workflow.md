@@ -52,9 +52,28 @@ tests: cover tiktok text policy validation
 - `priority:p2`
 - `status:needs-review`
 - `status:approved`
+- `status:done`
 - `blocked`
 
 ## Approval Gate
 
 Implementation work starts only after the related Batch issue is reviewed and
 marked `status:approved`.
+
+## Automatic Issue Closure
+
+Merged PRs into the default branch or an approved `plan/*` base branch trigger
+`.github/workflows/close-delivery-issues.yml`. The same workflow can be run
+manually with `workflow_dispatch` to reconcile a specific PR.
+
+- To close completed Batch issues, use explicit closing references in the PR
+  title or description, for example `Closes batches: #9 #10`.
+- Lines such as `Related issues: #9 #10` are informational and are not closed
+  by the workflow.
+- Epic issues close only when every Batch listed for that Epic in
+  `docs/issue-closure-map.json` is already closed.
+- The workflow removes review status labels and applies `status:done` to issues
+  it closes.
+- The closure map is validated against live issue titles and labels before any
+  write action, so stale issue numbers fail closed instead of closing the wrong
+  issue.

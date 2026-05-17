@@ -1,0 +1,99 @@
+{
+  "repository": "VasyaLutiy/ContentFactory",
+  "status_done_label": {
+    "name": "status:done",
+    "color": "5319e7",
+    "description": "Closed by merged implementation"
+  },
+  "batches": [
+    {
+      "batch": 8,
+      "title": "Batch: Repository Workflow And Issue Backlog"
+    },
+    {
+      "batch": 9,
+      "title": "Batch: Backend Skeleton And Health API"
+    },
+    {
+      "batch": 10,
+      "title": "Batch: Core Domain Models And Migrations"
+    },
+    {
+      "batch": 11,
+      "title": "Batch: Episode CRUD And Text Beat Validation API"
+    },
+    {
+      "batch": 12,
+      "title": "Batch: Render Job Queue Foundation"
+    },
+    {
+      "batch": 13,
+      "title": "Batch: ComfyUI Client And Workflow Validation"
+    },
+    {
+      "batch": 14,
+      "title": "Batch: Legacy Render Script Adapters"
+    },
+    {
+      "batch": 15,
+      "title": "Batch: Artifact Manager And Lineage"
+    },
+    {
+      "batch": 16,
+      "title": "Batch: Frontend Episode Editor Vertical Slice"
+    },
+    {
+      "batch": 17,
+      "title": "Batch: Render Queue UI"
+    },
+    {
+      "batch": 18,
+      "title": "Batch: TikTok Analytics Ingestion"
+    },
+    {
+      "batch": 19,
+      "title": "Batch: Recommendation Cards"
+    },
+    {
+      "batch": 20,
+      "title": "Batch: Production Hardening And Local Deployment"
+    }
+  ],
+  "epics": [
+    {
+      "epic": 1,
+      "title": "Epic: Backend Core And Persistence",
+      "batches": [9, 10, 11, 15]
+    },
+    {
+      "epic": 2,
+      "title": "Epic: Job Queue And Render State",
+      "batches": [12]
+    },
+    {
+      "epic": 3,
+      "title": "Epic: Legacy Script And Provider Adapters",
+      "batches": [13, 14]
+    },
+    {
+      "epic": 4,
+      "title": "Epic: Narrative Overlay And Export Policy",
+      "batches": [11, 14, 15]
+    },
+    {
+      "epic": 5,
+      "title": "Epic: Frontend Factory UI",
+      "batches": [16, 17]
+    },
+    {
+      "epic": 6,
+      "title": "Epic: Analytics And KPI Insights",
+      "batches": [18, 19]
+    },
+    {
+      "epic": 7,
+      "title": "Epic: Test Harness And Delivery Workflow",
+      "batches": [8, 9, 10, 11, 12, 13, 16, 17, 20]
+    }
+  ]
+}
