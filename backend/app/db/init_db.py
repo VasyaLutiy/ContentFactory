@@ -1,5 +1,7 @@
 from app.db.base import Base
 from app.db.models import (  # noqa: F401
+    agent_approval,
+    agent_event,
     agent_message,
     agent_session,
     agent_tool_call,

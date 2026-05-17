@@ -8,9 +8,12 @@ from app.db.repos.agent_session import AgentSessionRepository
 from app.db.repos.agent_tool_call import AgentToolCallRepository
 from app.db.session import get_session_maker
 from app.domain.services.agent_tool_registry import (
+    AgentTool,
     AgentToolAuditSink,
     AgentToolCallRecord,
+    AgentToolMetadata,
     AgentToolResultStatus,
+    AgentToolSafetyClass,
     build_default_agent_tool_registry,
 )
 
@@ -93,6 +96,34 @@ def test_registry_rejects_invalid_input_with_structured_schema_error(
     assert result.error is not None
     assert result.error.code == "invalid_tool_input"
     assert "Unexpected field" in result.error.message
+
+
+def test_registry_blocks_destructive_tools_without_executing_handler(tmp_path, monkeypatch) -> None:
+    registry = _registry(tmp_path, monkeypatch)
+    invoked = {"called": False}
+
+    registry.register(
+        AgentTool(
+            metadata=AgentToolMetadata(
+                name="delete_artifact",
+                description="Deletes an artifact.",
+                input_schema={"type": "object", "additionalProperties": False},
+                output_schema={"type": "object"},
+                safety_class=AgentToolSafetyClass.DESTRUCTIVE,
+                timeout_seconds=5,
+                cost_hint="none",
+            ),
+            handler=lambda _input: _mark_invoked(invoked),
+        )
+    )
+
+    result = registry.execute("delete_artifact", {})
+
+    assert result.status == AgentToolResultStatus.FAILED
+    assert result.error is not None
+    assert result.error.code == "approval_required"
+    assert result.error.details["safety_class"] == "destructive"
+    assert invoked["called"] is False
 
 
 def test_read_only_tools_return_deterministic_fixture_results(tmp_path, monkeypatch) -> None:
@@ -286,3 +317,8 @@ def _write_tool_fixtures(tmp_path) -> dict[str, str]:
         "variant": "job-1/video/clip-b.mp4",
         "analytics": "job-1/json/clip.analytics.json",
     }
+
+
+def _mark_invoked(state: dict[str, bool]):
+    state["called"] = True
+    raise AssertionError("handler should not be called for non-read-only tools")

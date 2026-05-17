@@ -29,3 +29,10 @@ class AssetKind(StrEnum):
     PROMPT = "prompt"
     LOG = "log"
     JSON = "json"
+
+
+class ApprovalStatus(StrEnum):
+    PENDING = "pending"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+    EXPIRED = "expired"

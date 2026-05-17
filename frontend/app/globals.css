@@ -317,6 +317,55 @@ small {
   overflow-wrap: anywhere;
 }
 
+.approval-card {
+  gap: 6px;
+}
+
+.approval-card-head {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.approval-card small {
+  color: #52637a;
+  font-size: 11px;
+}
+
+.approval-pill {
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  padding: 3px 8px;
+  text-transform: uppercase;
+}
+
+.approval-pill.pending {
+  background: #fff8e8;
+  border: 1px solid #f5df9a;
+  color: #8a5b12;
+}
+
+.approval-pill.approved {
+  background: #ebfbf2;
+  border: 1px solid #bfeecf;
+  color: #0f6f42;
+}
+
+.approval-pill.rejected {
+  background: #fff0f0;
+  border: 1px solid #f5caca;
+  color: #8a1f1f;
+}
+
+.approval-pill.expired {
+  background: #eff3f8;
+  border: 1px solid #d5dee8;
+  color: #415166;
+}
+
 .copilot-input {
   border: 1px solid var(--line);
   border-radius: 8px;

@@ -5,6 +5,7 @@ from app.db.base import Base
 from app.db.init_db import init_db
 from app.db.session import get_engine
 from app.main import create_app
+from app.workers.queue import render_queue
 
 
 @pytest.fixture(autouse=True)
@@ -14,6 +15,17 @@ def reset_database() -> None:
     init_db()
     yield
     Base.metadata.drop_all(bind=engine)
+
+
+@pytest.fixture(autouse=True)
+def reset_render_queue() -> None:
+    with render_queue._lock:
+        render_queue._queue.clear()
+        render_queue._jobs.clear()
+    yield
+    with render_queue._lock:
+        render_queue._queue.clear()
+        render_queue._jobs.clear()
 
 
 @pytest.fixture
