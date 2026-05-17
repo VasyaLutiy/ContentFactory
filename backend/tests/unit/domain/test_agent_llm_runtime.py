@@ -39,6 +39,8 @@ def test_runtime_attaches_read_only_tool_specs_when_native_tool_calling(
         "extract_keyframes",
         "analyze_tiktok_stats",
         "compare_variants",
+        "prepare_caption_pack",
+        "recommend_next_edit",
     }
     assert [tool.name for tool in provider.requests[0].tools] == list(result.tool_names)
 

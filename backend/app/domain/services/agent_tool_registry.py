@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from enum import StrEnum
 import logging
 from pathlib import Path
+import re
 from time import perf_counter
 from typing import Any
 
@@ -262,6 +263,8 @@ class ReadOnlyAgentTools:
             AgentTool(self._extract_keyframes_metadata(), self.extract_keyframes),
             AgentTool(self._analyze_tiktok_stats_metadata(), self.analyze_tiktok_stats),
             AgentTool(self._compare_variants_metadata(), self.compare_variants),
+            AgentTool(self._prepare_caption_pack_metadata(), self.prepare_caption_pack),
+            AgentTool(self._recommend_next_edit_metadata(), self.recommend_next_edit),
         )
 
     def list_artifacts(self, input_data: Mapping[str, Any]) -> AgentToolResult:
@@ -381,6 +384,164 @@ class ReadOnlyAgentTools:
             warnings=("No analytics sidecars found; comparison uses artifact metadata only.",)
             if all(not row["metrics"] for row in rows)
             else (),
+        )
+
+    def prepare_caption_pack(self, input_data: Mapping[str, Any]) -> AgentToolResult:
+        resolved = self._resolve_artifact(input_data)
+        if isinstance(resolved, AgentToolResult):
+            return resolved
+        ref, path = resolved
+        metadata = self._read_sidecar_json(path)
+        metrics = _metrics_from_payload(metadata, ref.artifact_id)
+        metric_lookup = _metric_lookup(metrics)
+        title = _clean_phrase(
+            str(
+                input_data.get("episode_title")
+                or metadata.get("episode_title")
+                or metadata.get("title")
+                or _title_from_stem(path.stem)
+            )
+        )
+        campaign = _clean_phrase(
+            str(input_data.get("campaign") or metadata.get("campaign") or ref.namespace)
+        )
+        platform = str(input_data.get("platform") or "tiktok")
+        objective = _clean_phrase(
+            str(
+                input_data.get("objective")
+                or metadata.get("objective")
+                or "Improve first two second retention."
+            )
+        )
+        retention_signal = _retention_signal(
+            metric_lookup,
+            ("first_2s_retention", "first_two_second_retention", "retention_rate"),
+        )
+        hook = _caption_hook(metadata, retention_signal.value)
+        caption = _clamp_text(
+            f"{hook} {title}. Follow the cut, then pick the next detail to test.",
+            max_chars=180,
+        )
+        hashtags = _hashtags_for(campaign, title, platform)
+        first_comment = _clamp_text(
+            f"Which beat should we improve next: hook, pacing, or the final reveal?",
+            max_chars=140,
+        )
+        strategy_note = _strategy_note(
+            objective,
+            retention_signal,
+            _text_beat_policy_note(metadata),
+        )
+        evidence = _caption_evidence(ref, metric_lookup, metadata)
+        memory_candidates = [
+            {
+                "type": "experiment_note",
+                "summary": f"Caption pack prepared for artifact {ref.artifact_id}.",
+                "artifact_ids": [ref.artifact_id],
+                "objective": _memory_safe_text(objective),
+                "evidence": [item["summary"] for item in evidence],
+            }
+        ]
+        warnings = ()
+        if not metadata:
+            warnings = ("No metadata sidecar found; caption pack uses artifact identity only.",)
+        return AgentToolResult.success(
+            output={
+                "caption_pack": {
+                    "platform": platform,
+                    "caption": caption,
+                    "hashtags": hashtags,
+                    "first_comment": first_comment,
+                    "strategy_note": strategy_note,
+                    "artifact_refs": [ref.__dict__],
+                    "evidence": evidence,
+                    "memory_candidates": memory_candidates,
+                }
+            },
+            artifact_refs=(ref,),
+            metrics=tuple(metrics),
+            warnings=warnings,
+        )
+
+    def recommend_next_edit(self, input_data: Mapping[str, Any]) -> AgentToolResult:
+        artifact_ids = tuple(str(item) for item in input_data.get("artifact_ids", ()))
+        refs: list[AgentArtifactRef] = []
+        paths: list[Path] = []
+        if artifact_ids:
+            for artifact_id in artifact_ids:
+                resolved = self._resolve_artifact({"artifact_id": artifact_id})
+                if isinstance(resolved, AgentToolResult):
+                    return resolved
+                ref, path = resolved
+                refs.append(ref)
+                paths.append(path)
+        else:
+            resolved = self._resolve_artifact(input_data)
+            if isinstance(resolved, AgentToolResult):
+                return resolved
+            ref, path = resolved
+            refs.append(ref)
+            paths.append(path)
+
+        recommendations: list[dict[str, Any]] = []
+        metrics: list[AgentMetric] = []
+        warnings: list[str] = []
+        for ref, path in zip(refs, paths, strict=True):
+            metadata = self._read_sidecar_json(path)
+            artifact_metrics = _metrics_from_payload(metadata, ref.artifact_id)
+            metrics.extend(artifact_metrics)
+            metric_lookup = _metric_lookup(artifact_metrics)
+            if not metadata:
+                warnings.append(
+                    (
+                        f"No metadata sidecar found for {ref.artifact_id}; "
+                        "using artifact identity only."
+                    )
+                )
+            recommendations.extend(
+                _recommendations_for_artifact(
+                    ref=ref,
+                    metadata=metadata,
+                    metric_lookup=metric_lookup,
+                    objective=str(input_data.get("objective") or ""),
+                )
+            )
+
+        ranked_variant = _rank_retention_winner(refs, paths)
+        if ranked_variant:
+            recommendations.append(ranked_variant)
+        if not recommendations and refs:
+            recommendations.append(
+                {
+                    "kind": "production_recommendation",
+                    "artifact_ids": [refs[0].artifact_id],
+                    "reason": "No clear retention or text-beat risk was found in local sidecars.",
+                    "evidence": ["Artifact has no actionable metric deltas in available metadata."],
+                    "next_action": (
+                        "Publish this variant as the control and collect a fresh "
+                        "analytics snapshot."
+                    ),
+                    "confidence": "low",
+                }
+            )
+        memory_candidates = [
+            {
+                "type": "variant_history",
+                "summary": recommendation["reason"],
+                "artifact_ids": recommendation["artifact_ids"],
+                "next_action": recommendation["next_action"],
+            }
+            for recommendation in recommendations[:3]
+        ]
+        return AgentToolResult.success(
+            output={
+                "recommendations": recommendations,
+                "memory_candidates": memory_candidates,
+                "artifact_refs": [ref.__dict__ for ref in refs],
+            },
+            artifact_refs=tuple(refs),
+            metrics=tuple(metrics),
+            warnings=tuple(warnings),
         )
 
     def _iter_artifacts(
@@ -595,6 +756,61 @@ class ReadOnlyAgentTools:
             audit_metadata={"reads": ["artifact_root"]},
         )
 
+    @staticmethod
+    def _prepare_caption_pack_metadata() -> AgentToolMetadata:
+        return AgentToolMetadata(
+            name="prepare_caption_pack",
+            description=(
+                "Prepare a posting-ready caption, hashtags, first comment, strategy note, "
+                "and curated memory candidates for a selected artifact."
+            ),
+            input_schema=_object_schema(
+                properties={
+                    "artifact_id": {"type": "string"},
+                    "path": {"type": "string"},
+                    "campaign": {"type": "string"},
+                    "episode_title": {"type": "string"},
+                    "objective": {"type": "string"},
+                    "platform": {
+                        "type": "string",
+                        "enum": ["tiktok", "youtube_shorts", "instagram_reels"],
+                    },
+                }
+            ),
+            output_schema=_object_schema(),
+            safety_class=AgentToolSafetyClass.READ_ONLY,
+            timeout_seconds=2.0,
+            cost_hint="local_io_only",
+            audit_metadata={"reads": ["artifact_root"]},
+        )
+
+    @staticmethod
+    def _recommend_next_edit_metadata() -> AgentToolMetadata:
+        return AgentToolMetadata(
+            name="recommend_next_edit",
+            description=(
+                "Return production recommendation cards grounded in artifact metadata, "
+                "TikTok metrics, first-two-second retention, and text-beat policy."
+            ),
+            input_schema=_object_schema(
+                properties={
+                    "artifact_id": {"type": "string"},
+                    "path": {"type": "string"},
+                    "artifact_ids": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "minItems": 1,
+                    },
+                    "objective": {"type": "string"},
+                }
+            ),
+            output_schema=_object_schema(),
+            safety_class=AgentToolSafetyClass.READ_ONLY,
+            timeout_seconds=2.0,
+            cost_hint="local_io_only",
+            audit_metadata={"reads": ["artifact_root"]},
+        )
+
 
 def validate_json_object(data: Mapping[str, Any], schema: Mapping[str, Any]) -> str | None:
     if schema.get("type", "object") != "object":
@@ -675,6 +891,276 @@ def _unit_for_metric(name: str) -> str | None:
     if name.endswith("_seconds"):
         return "seconds"
     return None
+
+
+def _metric_lookup(metrics: list[AgentMetric]) -> dict[str, AgentMetric]:
+    return {metric.name: metric for metric in metrics}
+
+
+def _numeric_metric(
+    metrics: Mapping[str, AgentMetric],
+    names: tuple[str, ...],
+) -> float | None:
+    for name in names:
+        metric = metrics.get(name)
+        if metric and isinstance(metric.value, int | float) and not isinstance(metric.value, bool):
+            return float(metric.value)
+    return None
+
+
+@dataclass(frozen=True)
+class RetentionSignal:
+    name: str | None
+    label: str
+    value: float | None
+
+
+def _retention_signal(
+    metrics: Mapping[str, AgentMetric],
+    names: tuple[str, ...],
+) -> RetentionSignal:
+    labels = {
+        "first_2s_retention": "First-two-second retention",
+        "first_two_second_retention": "First-two-second retention",
+        "retention_rate": "Overall retention rate",
+    }
+    for name in names:
+        metric = metrics.get(name)
+        if metric and isinstance(metric.value, int | float) and not isinstance(metric.value, bool):
+            return RetentionSignal(
+                name=name,
+                label=labels.get(name, name),
+                value=float(metric.value),
+            )
+    return RetentionSignal(name=None, label="Retention signal", value=None)
+
+
+def _title_from_stem(stem: str) -> str:
+    cleaned = re.sub(r"[_-]+", " ", stem).strip()
+    return cleaned.title() if cleaned else "Untitled Cut"
+
+
+def _clean_phrase(value: str) -> str:
+    cleaned = re.sub(r"\s+", " ", value).strip()
+    return cleaned or "Untitled"
+
+
+def _clamp_text(value: str, *, max_chars: int) -> str:
+    cleaned = _clean_phrase(value)
+    if len(cleaned) <= max_chars:
+        return cleaned
+    if max_chars <= 3:
+        return cleaned[:max_chars]
+    return cleaned[: max(0, max_chars - 3)].rstrip() + "..."
+
+
+def _caption_hook(metadata: Mapping[str, Any], first_two_retention: float | None) -> str:
+    hook = metadata.get("hook")
+    if isinstance(hook, str) and hook.strip():
+        return _clamp_text(hook, max_chars=80)
+    if first_two_retention is not None and first_two_retention < 0.45:
+        return "The opening beat is the test."
+    return "This cut is ready for a controlled test."
+
+
+def _memory_safe_text(value: str) -> str:
+    sanitized = re.sub(r"[^A-Za-z0-9 .,;:!?()/_-]+", " ", value)
+    return _clamp_text(sanitized, max_chars=160)
+
+
+def _hashtags_for(campaign: str, title: str, platform: str) -> list[str]:
+    words = re.findall(r"[A-Za-z0-9]+", f"{campaign} {title}".lower())
+    tags: list[str] = []
+    for word in words:
+        if len(word) < 3 or word in {"the", "and", "for", "with"}:
+            continue
+        tag = f"#{word[:24]}"
+        if tag not in tags:
+            tags.append(tag)
+        if len(tags) >= 4:
+            break
+    defaults = {
+        "tiktok": ["#tiktok", "#contentfactory"],
+        "youtube_shorts": ["#shorts", "#contentfactory"],
+        "instagram_reels": ["#reels", "#contentfactory"],
+    }
+    for tag in defaults.get(platform, defaults["tiktok"]):
+        if tag not in tags:
+            tags.append(tag)
+    return tags[:6]
+
+
+def _text_beats(metadata: Mapping[str, Any]) -> list[Mapping[str, Any]]:
+    beats = metadata.get("text_beats", metadata.get("on_screen_text_beats", ()))
+    return [beat for beat in beats if isinstance(beat, Mapping)] if isinstance(beats, list) else []
+
+
+def _first_text_start(metadata: Mapping[str, Any]) -> float | None:
+    starts: list[float] = []
+    for beat in _text_beats(metadata):
+        value = beat.get("start", beat.get("start_seconds"))
+        if isinstance(value, int | float) and not isinstance(value, bool):
+            starts.append(float(value))
+    return min(starts) if starts else None
+
+
+def _text_beat_policy_note(metadata: Mapping[str, Any]) -> str:
+    first_start = _first_text_start(metadata)
+    if first_start is None:
+        return "No text-beat sidecar was found; validate hook text before publishing."
+    if first_start > 0.3:
+        return f"First on-screen text starts at {first_start:.2f}s; policy target is <=0.30s."
+    return f"First on-screen text starts at {first_start:.2f}s and meets the <=0.30s hook policy."
+
+
+def _strategy_note(
+    objective: str,
+    retention_signal: RetentionSignal,
+    text_policy_note: str,
+) -> str:
+    metric_note = (
+        f"{retention_signal.label} is {retention_signal.value:.0%}; "
+        if retention_signal.value is not None
+        else "No retention metric is available; "
+    )
+    return _clamp_text(f"{metric_note}{text_policy_note} Objective: {objective}", max_chars=260)
+
+
+def _caption_evidence(
+    ref: AgentArtifactRef,
+    metric_lookup: Mapping[str, AgentMetric],
+    metadata: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    evidence = [
+        {
+            "type": "artifact",
+            "artifact_id": ref.artifact_id,
+            "summary": f"Posting pack is linked to {ref.kind} artifact {ref.artifact_id}.",
+        }
+    ]
+    retention = _retention_signal(
+        metric_lookup,
+        ("first_2s_retention", "first_two_second_retention", "retention_rate"),
+    )
+    if retention.value is not None:
+        evidence.append(
+            {
+                "type": "metric",
+                "metric": retention.name,
+                "value": retention.value,
+                "summary": f"{retention.label} is {retention.value:.0%}.",
+            }
+        )
+    evidence.append(
+        {
+            "type": "policy",
+            "summary": _text_beat_policy_note(metadata),
+        }
+    )
+    return evidence
+
+
+def _recommendations_for_artifact(
+    *,
+    ref: AgentArtifactRef,
+    metadata: Mapping[str, Any],
+    metric_lookup: Mapping[str, AgentMetric],
+    objective: str,
+) -> list[dict[str, Any]]:
+    recommendations: list[dict[str, Any]] = []
+    retention = _retention_signal(
+        metric_lookup,
+        ("first_2s_retention", "first_two_second_retention", "retention_rate"),
+    )
+    if retention.value is not None and retention.value < 0.45:
+        recommendations.append(
+            {
+                "kind": "production_recommendation",
+                "artifact_ids": [ref.artifact_id],
+                "reason": "Opening retention is below the production threshold.",
+                "evidence": [
+                    f"{retention.label} is {retention.value:.0%}.",
+                    f"Artifact: {ref.artifact_id}.",
+                ],
+                "next_action": (
+                    "Cut a variant with a clearer first-frame hook and re-test "
+                    "the first two seconds."
+                ),
+                "confidence": "medium",
+            }
+        )
+    first_start = _first_text_start(metadata)
+    if first_start is None or first_start > 0.3:
+        policy_summary = (
+            "No text-beat timing was found."
+            if first_start is None
+            else f"First text beat starts at {first_start:.2f}s."
+        )
+        recommendations.append(
+            {
+                "kind": "proposed_edit_action",
+                "artifact_ids": [ref.artifact_id],
+                "reason": "Hook text does not satisfy the first 0.3 second policy.",
+                "evidence": [policy_summary, "Policy target: first text beat at or before 0.30s."],
+                "next_action": "Add a short burned-in hook text beat at 0.00-0.30s.",
+                "confidence": "high",
+            }
+        )
+    if objective:
+        for recommendation in recommendations:
+            recommendation["objective"] = objective
+    return recommendations
+
+
+def _rank_retention_winner(
+    refs: list[AgentArtifactRef],
+    paths: list[Path],
+) -> dict[str, Any] | None:
+    if len(refs) < 2:
+        return None
+    scored: list[tuple[float, AgentArtifactRef]] = []
+    for ref, path in zip(refs, paths, strict=True):
+        lookup = _metric_lookup(_metrics_from_payload(_read_json_sidecar(path), ref.artifact_id))
+        score = _numeric_metric(
+            lookup,
+            ("retention_rate", "first_2s_retention", "first_two_second_retention"),
+        )
+        if score is not None:
+            scored.append((score, ref))
+    if len(scored) < 2:
+        return None
+    scored.sort(key=lambda item: item[0], reverse=True)
+    winner_score, winner = scored[0]
+    loser_score, loser = scored[-1]
+    if winner.artifact_id == loser.artifact_id:
+        return None
+    return {
+        "kind": "production_recommendation",
+        "artifact_ids": [winner.artifact_id, loser.artifact_id],
+        "reason": "One variant has the strongest available retention signal.",
+        "evidence": [
+            f"{winner.artifact_id}: {winner_score:.0%} retention.",
+            f"{loser.artifact_id}: {loser_score:.0%} retention.",
+        ],
+        "next_action": (
+            f"Promote {winner.artifact_id} as the control and archive the "
+            "lower-retention variant."
+        ),
+        "confidence": "medium",
+    }
+
+
+def _read_json_sidecar(path: Path) -> Mapping[str, Any]:
+    sidecar = path.with_name(f"{path.name}.metadata.json")
+    if not sidecar.is_file():
+        return {}
+    import json
+
+    try:
+        payload = json.loads(sidecar.read_text())
+    except json.JSONDecodeError:
+        return {}
+    return payload if isinstance(payload, Mapping) else {}
 
 
 def _object_schema(
