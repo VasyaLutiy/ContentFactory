@@ -1,5 +1,29 @@
 import { AppShell } from "@/app/_components/app-shell";
 
+export const dynamic = "force-dynamic";
+
+type RecommendationCardData = {
+  export_id: number;
+  export_ids: number[];
+  variant_label: string | null;
+  confidence: "low" | "medium" | "high" | string;
+  reason: string;
+  evidence: string[];
+  suggested_next_hook: string;
+  suggested_next_edit: string;
+  avg_watch_seconds: number | null;
+  full_watch_percent: number | null;
+  retention_note: string | null;
+  no_text_experiment: boolean;
+  text_metadata_source: string | null;
+  warnings: string[];
+};
+
+type RecommendationResult = {
+  cards: RecommendationCardData[];
+  error: string | null;
+};
+
 const activeJobs = [
   {
     id: "job-2026-0516-01",
@@ -59,7 +83,49 @@ const dashboardStats = [
   { label: "Worker", value: "Pending", meta: "External Comfy queue" },
 ];
 
-export default function DashboardPage() {
+const dashboardCampaignId = process.env.CONTENT_FACTORY_DASHBOARD_CAMPAIGN_ID?.trim() || "1";
+
+function recommendationCardsUrl() {
+  const apiBase = (
+    process.env.CONTENT_FACTORY_API_BASE_URL ||
+    process.env.NEXT_PUBLIC_CONTENT_FACTORY_API_BASE_URL ||
+    "http://127.0.0.1:8000"
+  ).replace(/\/$/, "");
+  const url = new URL("/api/v1/analytics/recommendation-cards", apiBase);
+  url.searchParams.set("campaign_id", dashboardCampaignId);
+  return url.toString();
+}
+
+async function fetchRecommendationCards(): Promise<RecommendationResult> {
+  try {
+    const response = await fetch(recommendationCardsUrl(), { cache: "no-store" });
+    if (!response.ok) {
+      return { cards: [], error: `Backend returned ${response.status} for campaign ${dashboardCampaignId}.` };
+    }
+    const payload: unknown = await response.json();
+    if (!Array.isArray(payload)) {
+      return { cards: [], error: "Backend returned an invalid recommendation payload." };
+    }
+    return { cards: payload as RecommendationCardData[], error: null };
+  } catch {
+    return { cards: [], error: "Recommendation service is unavailable." };
+  }
+}
+
+function confidenceLabel(value: RecommendationCardData["confidence"]) {
+  if (value === "high") {
+    return "High confidence";
+  }
+  if (value === "low") {
+    return "Low confidence";
+  }
+  return "Medium confidence";
+}
+
+export default async function DashboardPage() {
+  const recommendationResult = await fetchRecommendationCards();
+  const recommendations = recommendationResult.cards;
+
   return (
     <AppShell
       title="Factory Dashboard"
@@ -77,6 +143,67 @@ export default function DashboardPage() {
       </div>
 
       <div className="dashboard-layout">
+        <section className="panel">
+          <div className="panel-head">
+            <h2>Recommendations</h2>
+            <span className="badge muted">
+              Campaign {dashboardCampaignId}: {recommendations.length} ready
+            </span>
+          </div>
+          {recommendationResult.error ? (
+            <div className="recommendation-state" role="status">
+              <strong>Recommendations unavailable</strong>
+              <p>{recommendationResult.error}</p>
+            </div>
+          ) : recommendations.length === 0 ? (
+            <div className="recommendation-state" role="status">
+              <strong>No recommendations yet</strong>
+              <p>Campaign {dashboardCampaignId} has no export analytics snapshots ready for scoring.</p>
+            </div>
+          ) : (
+            <div className="recommendation-grid" aria-label="Recommendation cards">
+              {recommendations.map((item) => (
+                <article className="recommendation-card" key={item.export_id}>
+                  <div className="recommendation-head">
+                    <code>export_id={item.export_id}</code>
+                    <span className={`confidence-chip ${item.confidence}`}>{confidenceLabel(item.confidence)}</span>
+                  </div>
+                  <div className="recommendation-block">
+                    <span>Reason</span>
+                    <p>{item.reason}</p>
+                  </div>
+                  <div className="recommendation-block">
+                    <span>Evidence</span>
+                    <ul>
+                      {item.evidence.map((evidence) => (
+                        <li key={evidence}>{evidence}</li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div className="recommendation-block">
+                    <span>Suggested next hook</span>
+                    <p>{item.suggested_next_hook}</p>
+                  </div>
+                  <div className="recommendation-block">
+                    <span>Suggested edit</span>
+                    <p>{item.suggested_next_edit}</p>
+                  </div>
+                  <div className="recommendation-meta-row">
+                    <div>
+                      <span>Export IDs</span>
+                      <p>{item.export_ids.join(", ") || item.export_id}</p>
+                    </div>
+                    <div>
+                      <span>Variant label</span>
+                      <p>{item.variant_label || "Unlabeled variant"}</p>
+                    </div>
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
+
         <section className="panel">
           <div className="panel-head">
             <h2>Active Jobs</h2>

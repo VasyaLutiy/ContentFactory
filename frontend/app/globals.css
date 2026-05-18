@@ -866,3 +866,152 @@ small {
     grid-template-columns: 1fr;
   }
 }
+
+.recommendation-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+.recommendation-card {
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  padding: 12px;
+}
+
+.recommendation-head {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+  min-width: 0;
+}
+
+.recommendation-head code {
+  color: #3a4a60;
+  overflow-wrap: anywhere;
+}
+
+.confidence-chip {
+  background: #ecfdf3;
+  border: 1px solid #c5f1d8;
+  border-radius: 999px;
+  color: #0f6f42;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 8px;
+  white-space: nowrap;
+}
+
+.confidence-chip.medium {
+  background: #eef4ff;
+  border-color: #bfd4ff;
+  color: #1d4f91;
+}
+
+.confidence-chip.low {
+  background: #fff7ed;
+  border-color: #fed7aa;
+  color: #9a4d0f;
+}
+
+.recommendation-state {
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  border-radius: 8px;
+  display: grid;
+  gap: 5px;
+  padding: 14px;
+}
+
+.recommendation-state strong {
+  color: #172033;
+  font-size: 14px;
+}
+
+.recommendation-state p {
+  color: #53657a;
+  font-size: 13px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.recommendation-block {
+  display: grid;
+  gap: 4px;
+}
+
+.recommendation-block span,
+.recommendation-meta-row span {
+  color: #5b6b7f;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.recommendation-block p,
+.recommendation-meta-row p {
+  color: #2f3a49;
+  font-size: 13px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.recommendation-block ul {
+  display: grid;
+  gap: 4px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.recommendation-block li {
+  color: #2f3a49;
+  font-size: 13px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+  padding-left: 12px;
+  position: relative;
+}
+
+.recommendation-block li::before {
+  background: #0f62fe;
+  border-radius: 999px;
+  content: "";
+  height: 4px;
+  left: 0;
+  position: absolute;
+  top: 0.55em;
+  width: 4px;
+}
+
+.recommendation-meta-row {
+  border-top: 1px solid #e6edf5;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding-top: 10px;
+}
+
+.recommendation-meta-row > div {
+  min-width: 0;
+}
+
+@media (max-width: 720px) {
+  .recommendation-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .confidence-chip {
+    white-space: normal;
+  }
+
+  .recommendation-meta-row {
+    grid-template-columns: 1fr;
+  }
+}

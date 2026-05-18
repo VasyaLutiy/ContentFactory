@@ -1,12 +1,16 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.db.repos.analytics_snapshot import AnalyticsSnapshotRepository
 from app.db.repos.export import ExportRepository
 from app.db.session import get_db_session
+from app.domain.services.recommendation_cards import (
+    RecommendationCardInputError,
+    build_recommendation_cards,
+)
 from app.domain.services.tiktok_analytics_ingestion import (
     TikTokAnalyticsIngestionError,
     TikTokSnapshotArtifactLinks,
@@ -18,6 +22,7 @@ from app.schemas.analytics import (
     AnalyticsSnapshotRead,
     TikTokAnalyticsIngestPayload,
 )
+from app.schemas.recommendation import RecommendationCard
 
 router = APIRouter()
 
@@ -30,6 +35,18 @@ def list_snapshots(
 ) -> list[AnalyticsSnapshotRead]:
     snapshots = AnalyticsSnapshotRepository(db).list(campaign_id=campaign_id, export_id=export_id)
     return [AnalyticsSnapshotRead.from_model(snapshot) for snapshot in snapshots]
+
+
+@router.get("/recommendation-cards", response_model=list[RecommendationCard])
+def list_recommendation_cards(
+    campaign_id: int,
+    export_id: list[int] | None = Query(default=None),
+    db: Session = Depends(get_db_session),
+) -> list[RecommendationCard]:
+    try:
+        return build_recommendation_cards(db, campaign_id=campaign_id, export_ids=export_id)
+    except RecommendationCardInputError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
 
 @router.post("/snapshots", response_model=AnalyticsSnapshotRead, status_code=status.HTTP_201_CREATED)
