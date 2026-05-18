@@ -77,6 +77,28 @@ class _FlakyOnceTransport(OpenAICompatibleTransport):
         }
 
 
+class _FlakyTwiceTransport(OpenAICompatibleTransport):
+    def __init__(self) -> None:
+        self.calls = 0
+
+    async def create_chat_completion(
+        self,
+        *,
+        base_url: str | None,
+        api_key: str | None,
+        payload: Mapping[str, Any],
+        timeout_seconds: float,
+    ) -> Mapping[str, Any]:
+        self.calls += 1
+        if self.calls <= 2:
+            raise TimeoutError("slow")
+        return {
+            "model": "compat-model",
+            "choices": [{"message": {"content": "ok-after-retry"}, "finish_reason": "stop"}],
+            "usage": {"total_tokens": 9},
+        }
+
+
 def test_llm_settings_parse_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("CONTENT_FACTORY_LLM_PROVIDER", "openai")
     monkeypatch.setenv("CONTENT_FACTORY_LLM_BASE_URL", "https://example.invalid/v1")
@@ -284,6 +306,67 @@ def test_openai_compatible_provider_retries_once_on_timeout() -> None:
     )
 
     assert response.text == "ok-after-retry"
+    get_settings.cache_clear()
+
+
+def test_openai_compatible_provider_uses_configured_backoff_policy(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("CONTENT_FACTORY_LLM_RETRY_MAX_ATTEMPTS", "2")
+    monkeypatch.setenv("CONTENT_FACTORY_LLM_RETRY_BACKOFF_SECONDS", "0.1")
+    monkeypatch.setenv("CONTENT_FACTORY_LLM_RETRY_BACKOFF_MULTIPLIER", "3")
+    monkeypatch.setenv("CONTENT_FACTORY_LLM_RETRY_BACKOFF_MAX_SECONDS", "0.2")
+    get_settings.cache_clear()
+
+    delays: list[float] = []
+
+    async def _fake_sleep(delay: float) -> None:
+        delays.append(delay)
+
+    monkeypatch.setattr(asyncio, "sleep", _fake_sleep)
+    transport = _FlakyTwiceTransport()
+    provider = OpenAICompatibleProvider(
+        name="custom_openai_compat",
+        settings=get_settings(),
+        transport=transport,
+    )
+
+    response = asyncio.run(
+        provider.create_response(LLMRequest(messages=[LLMMessage(role="user", content="hi")]))
+    )
+
+    assert response.text == "ok-after-retry"
+    assert transport.calls == 3
+    assert delays == [0.1, 0.2]
+    get_settings.cache_clear()
+
+
+def test_openai_compatible_provider_respects_backoff_cap_below_base(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("CONTENT_FACTORY_LLM_RETRY_MAX_ATTEMPTS", "1")
+    monkeypatch.setenv("CONTENT_FACTORY_LLM_RETRY_BACKOFF_SECONDS", "5")
+    monkeypatch.setenv("CONTENT_FACTORY_LLM_RETRY_BACKOFF_MAX_SECONDS", "2")
+    get_settings.cache_clear()
+
+    delays: list[float] = []
+
+    async def _fake_sleep(delay: float) -> None:
+        delays.append(delay)
+
+    monkeypatch.setattr(asyncio, "sleep", _fake_sleep)
+    provider = OpenAICompatibleProvider(
+        name="custom_openai_compat",
+        settings=get_settings(),
+        transport=_FlakyOnceTransport(),
+    )
+
+    response = asyncio.run(
+        provider.create_response(LLMRequest(messages=[LLMMessage(role="user", content="hi")]))
+    )
+
+    assert response.text == "ok-after-retry"
+    assert delays == [2.0]
     get_settings.cache_clear()
 
 

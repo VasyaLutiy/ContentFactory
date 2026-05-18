@@ -1,0 +1,159 @@
+name: content-factory
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-content_factory}
+      POSTGRES_USER: ${POSTGRES_USER:-content_factory}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-content_factory_dev}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - redis-data:/data
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      CONTENT_FACTORY_DATABASE_URL: ${CONTENT_FACTORY_DATABASE_URL:-postgresql+psycopg://content_factory:content_factory_dev@postgres:5432/content_factory}
+      CONTENT_FACTORY_REDIS_URL: ${CONTENT_FACTORY_REDIS_URL:-redis://redis:6379/0}
+      CONTENT_FACTORY_ARTIFACT_ROOT: ${CONTENT_FACTORY_ARTIFACT_ROOT:-/var/lib/content-factory/artifacts}
+      CONTENT_FACTORY_LEGACY_ROOT: ${CONTENT_FACTORY_LEGACY_ROOT:-/mnt/content}
+      CONTENT_FACTORY_COMFY_URL: ${CONTENT_FACTORY_COMFY_URL:-http://host.docker.internal:8188}
+      CONTENT_FACTORY_ENABLE_DOCS: ${CONTENT_FACTORY_ENABLE_DOCS:-true}
+      CONTENT_FACTORY_LLM_PROVIDER: ${CONTENT_FACTORY_LLM_PROVIDER:-openai}
+      CONTENT_FACTORY_LLM_BASE_URL: ${CONTENT_FACTORY_LLM_BASE_URL:-https://api.openai.com/v1}
+      CONTENT_FACTORY_LLM_API_KEY: ${CONTENT_FACTORY_LLM_API_KEY:-}
+      CONTENT_FACTORY_LLM_MODEL: ${CONTENT_FACTORY_LLM_MODEL:-gpt-4o-mini}
+      CONTENT_FACTORY_LLM_TIMEOUT_SECONDS: ${CONTENT_FACTORY_LLM_TIMEOUT_SECONDS:-60}
+      CONTENT_FACTORY_LLM_RETRY_MAX_ATTEMPTS: ${CONTENT_FACTORY_LLM_RETRY_MAX_ATTEMPTS:-1}
+      CONTENT_FACTORY_LLM_RETRY_BACKOFF_SECONDS: ${CONTENT_FACTORY_LLM_RETRY_BACKOFF_SECONDS:-0.2}
+      CONTENT_FACTORY_LLM_RETRY_BACKOFF_MULTIPLIER: ${CONTENT_FACTORY_LLM_RETRY_BACKOFF_MULTIPLIER:-2.0}
+      CONTENT_FACTORY_LLM_RETRY_BACKOFF_MAX_SECONDS: ${CONTENT_FACTORY_LLM_RETRY_BACKOFF_MAX_SECONDS:-2.0}
+      CONTENT_FACTORY_LLM_TOKEN_BUDGET: ${CONTENT_FACTORY_LLM_TOKEN_BUDGET:-4096}
+      CONTENT_FACTORY_LOG_LEVEL: ${CONTENT_FACTORY_LOG_LEVEL:-INFO}
+      CONTENT_FACTORY_LOG_JSON: ${CONTENT_FACTORY_LOG_JSON:-true}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "from urllib.request import urlopen; urlopen('http://127.0.0.1:8000/api/v1/health/ready', timeout=5).read()",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    volumes:
+      - artifact-data:/var/lib/content-factory/artifacts
+      - ${CONTENT_FACTORY_LEGACY_ROOT:-/home/kosmoletc/Content}:/mnt/content:ro
+    ports:
+      - "${API_PORT:-8000}:8000"
+
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    entrypoint: ["/usr/local/bin/content-factory-worker-entrypoint"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      CONTENT_FACTORY_DATABASE_URL: ${CONTENT_FACTORY_DATABASE_URL:-postgresql+psycopg://content_factory:content_factory_dev@postgres:5432/content_factory}
+      CONTENT_FACTORY_REDIS_URL: ${CONTENT_FACTORY_REDIS_URL:-redis://redis:6379/0}
+      CONTENT_FACTORY_ARTIFACT_ROOT: ${CONTENT_FACTORY_ARTIFACT_ROOT:-/var/lib/content-factory/artifacts}
+      CONTENT_FACTORY_LEGACY_ROOT: ${CONTENT_FACTORY_LEGACY_ROOT:-/mnt/content}
+      CONTENT_FACTORY_COMFY_URL: ${CONTENT_FACTORY_COMFY_URL:-http://host.docker.internal:8188}
+      CONTENT_FACTORY_LLM_PROVIDER: ${CONTENT_FACTORY_LLM_PROVIDER:-openai}
+      CONTENT_FACTORY_LLM_BASE_URL: ${CONTENT_FACTORY_LLM_BASE_URL:-https://api.openai.com/v1}
+      CONTENT_FACTORY_LLM_API_KEY: ${CONTENT_FACTORY_LLM_API_KEY:-}
+      CONTENT_FACTORY_LLM_MODEL: ${CONTENT_FACTORY_LLM_MODEL:-gpt-4o-mini}
+      CONTENT_FACTORY_LLM_TIMEOUT_SECONDS: ${CONTENT_FACTORY_LLM_TIMEOUT_SECONDS:-60}
+      CONTENT_FACTORY_LLM_RETRY_MAX_ATTEMPTS: ${CONTENT_FACTORY_LLM_RETRY_MAX_ATTEMPTS:-1}
+      CONTENT_FACTORY_LLM_RETRY_BACKOFF_SECONDS: ${CONTENT_FACTORY_LLM_RETRY_BACKOFF_SECONDS:-0.2}
+      CONTENT_FACTORY_LLM_RETRY_BACKOFF_MULTIPLIER: ${CONTENT_FACTORY_LLM_RETRY_BACKOFF_MULTIPLIER:-2.0}
+      CONTENT_FACTORY_LLM_RETRY_BACKOFF_MAX_SECONDS: ${CONTENT_FACTORY_LLM_RETRY_BACKOFF_MAX_SECONDS:-2.0}
+      CONTENT_FACTORY_LLM_TOKEN_BUDGET: ${CONTENT_FACTORY_LLM_TOKEN_BUDGET:-4096}
+      CONTENT_FACTORY_LOG_LEVEL: ${CONTENT_FACTORY_LOG_LEVEL:-INFO}
+      CONTENT_FACTORY_LOG_JSON: ${CONTENT_FACTORY_LOG_JSON:-true}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import app.workers.queue"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    volumes:
+      - artifact-data:/var/lib/content-factory/artifacts
+      - ${CONTENT_FACTORY_LEGACY_ROOT:-/home/kosmoletc/Content}:/mnt/content:ro
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_CONTENT_FACTORY_API_BASE_URL: ${NEXT_PUBLIC_CONTENT_FACTORY_API_BASE_URL:-http://localhost:8000}
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      CONTENT_FACTORY_API_BASE_URL: ${CONTENT_FACTORY_API_BASE_URL:-http://api:8000}
+      NEXT_PUBLIC_CONTENT_FACTORY_API_BASE_URL: ${NEXT_PUBLIC_CONTENT_FACTORY_API_BASE_URL:-http://localhost:8000}
+      CONTENT_FACTORY_DASHBOARD_CAMPAIGN_ID: ${CONTENT_FACTORY_DASHBOARD_CAMPAIGN_ID:-1}
+      PORT: 3000
+      HOSTNAME: 0.0.0.0
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+
+volumes:
+  artifact-data:
+  postgres-data:
+  redis-data:

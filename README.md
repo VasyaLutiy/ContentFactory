@@ -34,6 +34,7 @@ backend/
   tests/              pytest unit/integration tests
 frontend/             UI scaffold will live here
 docs/                 architecture notes and migration records
+  runbooks/            local deployment, recovery, and test operations
 ```
 
 ## Backend
@@ -49,3 +50,14 @@ uvicorn app.main:app --reload
 
 The backend currently has no hard dependency on a running ComfyUI instance for
 unit tests. Real render integration is intentionally isolated behind adapters.
+
+## Local Stack
+
+```bash
+cd /home/kosmoletc/Content/ContentFactory
+docker compose --env-file .env.example up --build -d
+curl -fsS http://127.0.0.1:8000/api/v1/health/ready
+curl -fsSI http://127.0.0.1:3000/dashboard
+```
+
+Operational details live in `docs/runbooks/`.

@@ -81,9 +81,6 @@ class UrlLibOpenAICompatibleTransport(OpenAICompatibleTransport):
 
 
 class OpenAICompatibleProvider:
-    _MAX_RETRIES = 1
-    _RETRY_BACKOFF_SECONDS = 0.2
-
     def __init__(
         self,
         *,
@@ -108,7 +105,8 @@ class OpenAICompatibleProvider:
         raw: Mapping[str, Any] | None = None
         last_error: Exception | None = None
         retry_count = 0
-        for attempt in range(self._MAX_RETRIES + 1):
+        max_retries = max(0, self._settings.llm_retry_max_attempts)
+        for attempt in range(max_retries + 1):
             try:
                 raw = await self._transport.create_chat_completion(
                     base_url=self._settings.llm_base_url,
@@ -120,8 +118,22 @@ class OpenAICompatibleProvider:
                 break
             except (TimeoutError, asyncio.TimeoutError) as exc:
                 last_error = exc
-                if attempt < self._MAX_RETRIES:
-                    await asyncio.sleep(self._RETRY_BACKOFF_SECONDS)
+                if attempt < max_retries:
+                    backoff_seconds = self._retry_backoff_seconds(attempt)
+                    logger.warning(
+                        "llm_provider_retry_scheduled",
+                        extra={
+                            "provider": self.name,
+                            "model": payload.get("model"),
+                            "timeout_seconds": self._settings.llm_timeout_seconds,
+                            "retry_count": attempt,
+                            "max_retries": max_retries,
+                            "backoff_seconds": backoff_seconds,
+                            "status": "retrying",
+                            "error_code": "provider_timeout",
+                        },
+                    )
+                    await asyncio.sleep(backoff_seconds)
                     continue
                 logger.warning(
                     "llm_provider_timeout",
@@ -184,6 +196,12 @@ class OpenAICompatibleProvider:
             },
         )
         return response
+
+    def _retry_backoff_seconds(self, attempt: int) -> float:
+        base = max(0.0, self._settings.llm_retry_backoff_seconds)
+        multiplier = max(1.0, self._settings.llm_retry_backoff_multiplier)
+        max_backoff = max(0.0, self._settings.llm_retry_backoff_max_seconds)
+        return min(base * (multiplier**attempt), max_backoff)
 
     async def createResponse(self, request: LLMRequest) -> LLMResponse:  # noqa: N802
         return await self.create_response(request)
