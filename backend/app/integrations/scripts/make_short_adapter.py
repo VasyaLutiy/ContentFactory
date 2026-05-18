@@ -1,8 +1,10 @@
 from dataclasses import dataclass, replace
 import os
 from pathlib import Path
+from typing import Any
 
-from app.artifacts.storage import ArtifactStorage
+from app.artifacts.storage import ArtifactStorage, validate_artifact_namespace
+from app.db.repos.asset import AssetRepository
 from app.integrations.scripts.execution import (
     ExpectedArtifact,
     LegacyScriptResult,
@@ -57,6 +59,11 @@ def run_make_short(
     *,
     storage: ArtifactStorage | None = None,
     namespace: str | None = None,
+    asset_repository: AssetRepository | None = None,
+    metadata: dict[str, Any] | None = None,
+    render_job_id: str | None = None,
+    render_step_kind: str | None = None,
+    parent_asset_ids: tuple[int, ...] = (),
 ) -> LegacyScriptResult:
     require_artifact_namespace(storage=storage, namespace=namespace)
     request = _with_namespaced_default_out(request, storage=storage, namespace=namespace)
@@ -67,6 +74,11 @@ def run_make_short(
         expected_artifacts=expected_make_short_artifacts(request),
         storage=storage,
         namespace=namespace,
+        asset_repository=asset_repository,
+        metadata=metadata,
+        render_job_id=render_job_id,
+        render_step_kind=render_step_kind,
+        parent_asset_ids=parent_asset_ids,
     )
 
 
@@ -88,6 +100,7 @@ def _with_namespaced_default_out(
         return request
     if namespace is None:
         raise ValueError("namespace is required when artifact storage is enabled.")
+    namespace = validate_artifact_namespace(namespace)
     return replace(request, out=f"{namespace}_{_slugify(request.prompt)}.mp4")
 
 
