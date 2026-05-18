@@ -5,6 +5,7 @@ from fastapi import FastAPI
 
 from app.api.router import api_router
 from app.core.config import get_settings
+from app.core.logging import configure_logging
 from app.db.init_db import init_db
 
 
@@ -16,6 +17,7 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 
 def create_app() -> FastAPI:
     settings = get_settings()
+    configure_logging(settings)
     app = FastAPI(
         title="ContentFactory API",
         version="0.1.0",

@@ -12,6 +12,7 @@ dependencies = [
   "uvicorn[standard]>=0.29",
   "pydantic>=2.7",
   "sqlalchemy>=2.0",
+  "psycopg[binary]>=3.2",
 ]
 
 [project.optional-dependencies]
@@ -23,6 +24,10 @@ dev = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+exclude = ["docker*"]
 
 [tool.ruff]
 line-length = 100
