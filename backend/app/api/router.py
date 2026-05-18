@@ -2,11 +2,13 @@ from fastapi import APIRouter
 
 from app.api.v1 import (
     agent_sessions,
+    analytics,
     artifacts,
     campaigns,
     characters,
     episodes,
     episodes_crud,
+    exports,
     health,
     scenes,
     text_beats,
@@ -18,6 +20,8 @@ api_router.include_router(health.router, prefix="/health", tags=["health"])
 api_router.include_router(episodes.router, prefix="/episodes", tags=["episodes-validation"])
 api_router.include_router(agent_sessions.router, prefix="/agent", tags=["agent"])
 api_router.include_router(artifacts.router, prefix="/artifacts", tags=["artifacts"])
+api_router.include_router(exports.router, prefix="/exports", tags=["exports"])
+api_router.include_router(analytics.router, prefix="/analytics", tags=["analytics"])
 api_router.include_router(campaigns.router, prefix="/campaigns", tags=["campaigns"])
 api_router.include_router(characters.router, prefix="/characters", tags=["characters"])
 api_router.include_router(episodes_crud.router, prefix="/episode-items", tags=["episodes"])
